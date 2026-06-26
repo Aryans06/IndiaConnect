@@ -35,7 +35,7 @@ const STEP_ORDER: AttributeKey[] = [
   "state",
 ];
 
-export function FinderWizard() {
+export function FinderWizard({ signedIn = false }: { signedIn?: boolean }) {
   const [step, setStep] = useState(0);
   const [profile, setProfile] = useState<Profile>({});
   const [results, setResults] = useState<ResultItem[] | null>(null);
@@ -94,7 +94,14 @@ export function FinderWizard() {
   }
 
   if (results) {
-    return <Results results={results} onRestart={restart} />;
+    return (
+      <Results
+        results={results}
+        profile={profile}
+        signedIn={signedIn}
+        onRestart={restart}
+      />
+    );
   }
 
   const current = profile[key];
@@ -254,13 +261,33 @@ function OptionButton({
 
 function Results({
   results,
+  profile,
+  signedIn,
   onRestart,
 }: {
   results: ResultItem[];
+  profile: Profile;
+  signedIn: boolean;
   onRestart: () => void;
 }) {
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
   const eligible = results.filter((r) => r.status === "eligible");
   const maybe = results.filter((r) => r.status === "needs_more_info");
+
+  async function saveProfile() {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(profile),
+      });
+      if (res.ok) setSaved(true);
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <div className="mx-auto max-w-2xl reveal">
@@ -304,6 +331,25 @@ function Results({
           <p className="mt-1 text-sm text-ink-soft">
             Try answering a few more questions, or browse all schemes.
           </p>
+        </div>
+      )}
+
+      {signedIn && (
+        <div className="mt-8 flex items-center gap-3 rounded-lg border border-line bg-surface p-4">
+          <p className="flex-1 text-sm text-ink-soft">
+            {saved
+              ? "Saved to your profile — your matches will be ready next time."
+              : "Save these answers to your profile for personalized results everywhere."}
+          </p>
+          {!saved && (
+            <button
+              onClick={saveProfile}
+              disabled={saving}
+              className="shrink-0 rounded-lg bg-saffron px-4 py-2 text-sm font-semibold text-white transition hover:bg-saffron-ink disabled:opacity-60"
+            >
+              {saving ? "Saving…" : "Save to profile"}
+            </button>
+          )}
         </div>
       )}
 

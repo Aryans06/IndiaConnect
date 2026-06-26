@@ -4,6 +4,10 @@ import { notFound } from "next/navigation";
 import { getSchemeBySlug } from "@/lib/schemes";
 import { getAttribute } from "@/lib/eligibility/attributes";
 import type { RuleOperator, RuleValue } from "@/lib/eligibility/rules";
+import { getAuthedUser } from "@/lib/auth";
+import { getUserSchemeState } from "@/lib/account";
+import { getUserDocTypes, matchDocuments } from "@/lib/digilocker/documents";
+import { SchemeActions } from "@/components/scheme-actions";
 
 export async function generateMetadata({
   params,
@@ -27,6 +31,19 @@ export default async function SchemeDetailPage({
 
   const place =
     scheme.level === "STATE" ? (scheme.state ?? "State scheme") : "All India";
+
+  // Personalize when signed in: bookmark/application state + DigiLocker
+  // have/need document matching.
+  const user = await getAuthedUser();
+  const userState = user
+    ? await getUserSchemeState(user.id, slug)
+    : { bookmarked: false, applicationStatus: null };
+  const ownedTypes = user ? await getUserDocTypes(user.id) : new Set<string>();
+  const docMatch = matchDocuments(
+    scheme.documents,
+    ownedTypes,
+    ownedTypes.size > 0,
+  );
 
   return (
     <main className="mx-auto w-full max-w-3xl flex-1 px-5 py-10">
@@ -68,6 +85,14 @@ export default async function SchemeDetailPage({
             </a>
           )}
         </div>
+        <div className="mt-4">
+          <SchemeActions
+            slug={scheme.slug}
+            signedIn={Boolean(user)}
+            initialBookmarked={userState.bookmarked}
+            initialStatus={userState.applicationStatus}
+          />
+        </div>
       </header>
 
       {scheme.benefits && (
@@ -101,19 +126,58 @@ export default async function SchemeDetailPage({
 
       {scheme.documents.length > 0 && (
         <Section title="Documents you'll need">
+          {docMatch.connected && (
+            <p className="mb-3 text-sm text-ink-soft">
+              From your DigiLocker:{" "}
+              <span className="font-semibold text-eligible">
+                {docMatch.haveCount} ready
+              </span>
+              {docMatch.needCount > 0 && (
+                <>
+                  {" · "}
+                  <span className="font-semibold text-pending">
+                    {docMatch.needCount} to arrange
+                  </span>
+                </>
+              )}
+            </p>
+          )}
           <ul className="grid gap-2 sm:grid-cols-2">
-            {scheme.documents.map((d, i) => (
+            {docMatch.matches.map((d, i) => (
               <li
                 key={i}
                 className="flex items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2.5 text-sm"
               >
-                <span aria-hidden className="text-saffron">
-                  ▸
-                </span>
-                {d.name}
+                {docMatch.connected && d.checkable ? (
+                  <span
+                    aria-hidden
+                    className={d.have ? "text-eligible" : "text-denied"}
+                  >
+                    {d.have ? "✓" : "✕"}
+                  </span>
+                ) : (
+                  <span aria-hidden className="text-saffron">
+                    ▸
+                  </span>
+                )}
+                <span className={d.have ? "text-ink" : ""}>{d.name}</span>
+                {docMatch.connected && d.have && (
+                  <span className="ml-auto text-xs font-medium text-eligible">
+                    In DigiLocker
+                  </span>
+                )}
               </li>
             ))}
           </ul>
+          {!docMatch.connected && (
+            <p className="mt-3 text-xs text-muted">
+              Connect DigiLocker in{" "}
+              <Link href="/account" className="font-semibold text-saffron-ink hover:underline">
+                your account
+              </Link>{" "}
+              to see which of these you already have.
+            </p>
+          )}
         </Section>
       )}
 

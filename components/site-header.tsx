@@ -1,6 +1,13 @@
 import Link from "next/link";
+import { isClerkConfigured } from "@/lib/auth";
+import { AuthNav } from "@/components/auth-nav";
 
 export function SiteHeader() {
+  const authMode: "clerk" | "mock" | "none" = isClerkConfigured()
+    ? "clerk"
+    : process.env.DEV_MOCK_AUTH === "true"
+      ? "mock"
+      : "none";
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-paper/85 backdrop-blur-sm">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5">
@@ -30,6 +37,7 @@ export function SiteHeader() {
           >
             Check eligibility
           </Link>
+          <AuthNav mode={authMode} />
         </nav>
       </div>
     </header>
