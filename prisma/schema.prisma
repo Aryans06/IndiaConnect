@@ -1,0 +1,205 @@
+// IndiaConnect data model
+// Backbone: a normalized catalog of government schemes + structured eligibility
+// rules, plus per-user profile/tracking and DigiLocker document links.
+// Docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Scheme catalog (the backbone)
+// ---------------------------------------------------------------------------
+
+enum SchemeLevel {
+  CENTRAL
+  STATE
+}
+
+model Scheme {
+  id           String      @id @default(cuid())
+  slug         String      @unique
+  title        String
+  ministry     String?
+  category     String? // e.g. Agriculture, Health, Education, Social Welfare
+  level        SchemeLevel @default(CENTRAL)
+  state        String? // null for central schemes
+  summary      String // plain-language English summary
+  benefits     String? // what the citizen gets
+  howToApply   String? // narrative fallback; structured steps below
+  sourceUrl    String?
+  // Cache of translated content keyed by locale -> { title, summary, ... }
+  translations Json?
+
+  eligibilityRules  EligibilityRule[]
+  requiredDocuments RequiredDocument[]
+  applicationSteps  ApplicationStep[]
+  applications      Application[]
+  bookmarks         Bookmark[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+  @@index([level, state])
+}
+
+// A single structured eligibility condition. The matcher evaluates a
+// CitizenProfile against the full set per scheme. Conditions sharing a
+// non-null `orGroup` are OR-ed together; everything else is AND-ed.
+enum RuleOperator {
+  EQ // ==
+  NEQ // !=
+  LT // <
+  LTE // <=
+  GT // >
+  GTE // >=
+  IN // value in [list]
+  NOT_IN
+  BETWEEN // value within [min, max]
+}
+
+model EligibilityRule {
+  id        String       @id @default(cuid())
+  schemeId  String
+  scheme    Scheme       @relation(fields: [schemeId], references: [id], onDelete: Cascade)
+  attribute String // maps to a CitizenProfile field, e.g. "annualIncome"
+  operator  RuleOperator
+  // Stored as JSON to support scalars, arrays (IN), and tuples (BETWEEN).
+  value     Json
+  orGroup   String? // rules with the same orGroup are OR-ed
+  rawText   String? // original myScheme criteria text (provenance/debug)
+
+  createdAt DateTime @default(now())
+
+  @@index([schemeId])
+}
+
+model RequiredDocument {
+  id              String  @id @default(cuid())
+  schemeId        String
+  scheme          Scheme  @relation(fields: [schemeId], references: [id], onDelete: Cascade)
+  name            String // e.g. "Income Certificate"
+  // Maps to a DigiLocker issued-document type when known, enabling have/need.
+  digilockerDocType String?
+
+  @@index([schemeId])
+}
+
+model ApplicationStep {
+  id          String @id @default(cuid())
+  schemeId    String
+  scheme      Scheme @relation(fields: [schemeId], references: [id], onDelete: Cascade)
+  order       Int
+  instruction String
+
+  @@index([schemeId])
+}
+
+// ---------------------------------------------------------------------------
+// Users (identity in Clerk; this holds app data keyed to the Clerk user)
+// ---------------------------------------------------------------------------
+
+model User {
+  id        String  @id @default(cuid())
+  clerkId   String  @unique
+  name      String?
+
+  profile      CitizenProfile?
+  applications Application[]
+  bookmarks    Bookmark[]
+  digiLocker   DigiLockerLink?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum SocialCategory {
+  GENERAL
+  OBC
+  SC
+  ST
+}
+
+model CitizenProfile {
+  id             String          @id @default(cuid())
+  userId         String          @unique
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  age            Int?
+  gender         String?
+  state          String?
+  annualIncome   Int?
+  occupation     String?
+  socialCategory SocialCategory?
+  isDisabled     Boolean?
+  rationCardType String?
+  // Open-ended extra attributes referenced by rules but not first-class fields.
+  attributes     Json?
+
+  updatedAt DateTime @updatedAt
+}
+
+enum ApplicationStatus {
+  SAVED
+  IN_PROGRESS
+  APPLIED
+}
+
+model Application {
+  id        String            @id @default(cuid())
+  userId    String
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  schemeId  String
+  scheme    Scheme            @relation(fields: [schemeId], references: [id], onDelete: Cascade)
+  status    ApplicationStatus @default(SAVED)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  @@unique([userId, schemeId])
+}
+
+model Bookmark {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  schemeId  String
+  scheme    Scheme   @relation(fields: [schemeId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, schemeId])
+}
+
+// ---------------------------------------------------------------------------
+// DigiLocker (OAuth link + cached issued documents)
+// ---------------------------------------------------------------------------
+
+model DigiLockerLink {
+  id           String         @id @default(cuid())
+  userId       String         @unique
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken  String? // encrypted at rest in real deployment
+  refreshToken String?
+  expiresAt    DateTime?
+  documents    UserDocument[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model UserDocument {
+  id          String         @id @default(cuid())
+  linkId      String
+  link        DigiLockerLink @relation(fields: [linkId], references: [id], onDelete: Cascade)
+  docType     String // normalized type, e.g. "INCOME_CERTIFICATE"
+  name        String
+  issuer      String?
+  uri         String? // DigiLocker URI to the issued doc
+  issuedAt    DateTime?
+
+  @@index([linkId])
+}
