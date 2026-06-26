@@ -57,7 +57,7 @@ export interface MatchResult {
 type Outcome = "pass" | "fail" | "unknown";
 
 function humanAttribute(key: string): string {
-  return getAttribute(key)?.question.replace(/\?$/, "") ?? key;
+  return getAttribute(key)?.label ?? key;
 }
 
 function formatValue(value: RuleValue): string {

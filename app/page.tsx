@@ -1,33 +1,100 @@
 import Link from "next/link";
+import { getSchemes } from "@/lib/schemes";
 
-export default function Home() {
+export default async function Home() {
+  const schemes = await getSchemes();
+  const count = schemes.length;
+
   return (
-    <main className="flex flex-1 flex-col items-center justify-center px-6 py-20 text-center">
-      <span className="mb-4 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
-        Government schemes, made simple
-      </span>
-      <h1 className="max-w-2xl text-balance text-4xl font-bold tracking-tight sm:text-5xl">
-        Find the government schemes you actually qualify for
-      </h1>
-      <p className="mt-5 max-w-xl text-balance text-lg text-gray-600">
-        Answer a few simple questions and instantly see the welfare schemes
-        meant for you — with the documents you need and how to apply, in your
-        language.
-      </p>
-      <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-        <Link
-          href="/finder"
-          className="rounded-lg bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700"
-        >
-          Check my eligibility
-        </Link>
-        <Link
-          href="/schemes"
-          className="rounded-lg border border-gray-300 px-5 py-3 text-sm font-semibold text-gray-800 transition hover:bg-gray-50"
-        >
-          Browse all schemes
-        </Link>
-      </div>
+    <main className="flex-1">
+      {/* Hero */}
+      <section className="mx-auto max-w-6xl px-5 pb-12 pt-16 sm:pt-24">
+        <p className="eyebrow reveal">For every citizen · आपके लिए</p>
+        <h1 className="reveal mt-3 max-w-3xl font-display text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-6xl">
+          The government has a scheme for you.
+          <span className="text-saffron"> Let's find it.</span>
+        </h1>
+        <p className="reveal mt-5 max-w-xl text-lg leading-relaxed text-ink-soft">
+          Thousands of welfare schemes exist — pensions, scholarships, housing,
+          healthcare. Answer a few simple questions and see the ones meant for
+          you, the documents you need, and how to apply.
+        </p>
+        <div className="reveal mt-8 flex flex-wrap items-center gap-3">
+          <Link
+            href="/finder"
+            className="rounded-lg bg-saffron px-6 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-saffron-ink"
+          >
+            Check my eligibility →
+          </Link>
+          <Link
+            href="/schemes"
+            className="rounded-lg border border-line-strong bg-surface px-6 py-3.5 text-sm font-semibold text-ink transition hover:bg-surface-sunken"
+          >
+            Browse {count} schemes
+          </Link>
+        </div>
+      </section>
+
+      {/* How it works — a real three-step sequence, so numbering is earned. */}
+      <section className="border-y border-line bg-surface">
+        <div className="mx-auto grid max-w-6xl gap-px overflow-hidden sm:grid-cols-3">
+          {[
+            {
+              n: "01",
+              t: "Tell us about you",
+              d: "Age, work, income — just the basics. Skip anything you'd rather not share.",
+            },
+            {
+              n: "02",
+              t: "See your matches",
+              d: "We check your answers against every scheme's real eligibility rules.",
+            },
+            {
+              n: "03",
+              t: "Get the documents",
+              d: "Know exactly which papers you need and the steps to apply.",
+            },
+          ].map((s) => (
+            <div key={s.n} className="bg-surface p-6 sm:p-8">
+              <span className="font-mono text-sm font-semibold text-saffron">
+                {s.n}
+              </span>
+              <h3 className="mt-3 font-display text-lg font-semibold tracking-tight">
+                {s.t}
+              </h3>
+              <p className="mt-1.5 text-sm leading-relaxed text-ink-soft">
+                {s.d}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Categories preview */}
+      <section className="mx-auto max-w-6xl px-5 py-14">
+        <h2 className="font-display text-2xl font-bold tracking-tight">
+          What are you looking for?
+        </h2>
+        <div className="mt-5 flex flex-wrap gap-2.5">
+          {[
+            "Agriculture",
+            "Health",
+            "Education",
+            "Social Welfare",
+            "Housing",
+            "Women & Child",
+            "Entrepreneurship",
+          ].map((c) => (
+            <Link
+              key={c}
+              href={`/schemes?category=${encodeURIComponent(c)}`}
+              className="rounded-full border border-line bg-surface px-4 py-2 text-sm font-medium text-ink-soft transition hover:border-saffron hover:text-saffron-ink"
+            >
+              {c}
+            </Link>
+          ))}
+        </div>
+      </section>
     </main>
   );
 }

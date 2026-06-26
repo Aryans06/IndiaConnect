@@ -1,0 +1,47 @@
+import Link from "next/link";
+import type { SchemeListEntry } from "@/lib/schemes";
+import type { EligibilityStatus } from "@/lib/eligibility/matcher";
+import { StatusStamp } from "./status-stamp";
+
+export function SchemeCard({
+  scheme,
+  status,
+  reason,
+}: {
+  scheme: SchemeListEntry;
+  status?: EligibilityStatus;
+  reason?: string;
+}) {
+  const place =
+    scheme.level === "STATE" ? (scheme.state ?? "State") : "All India";
+  return (
+    <Link
+      href={`/schemes/${scheme.slug}`}
+      className="group flex flex-col rounded-lg border border-line bg-surface p-5 transition hover:border-line-strong hover:shadow-[0_1px_0_var(--color-line-strong),0_8px_24px_-12px_rgba(20,33,61,0.18)]"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <span className="eyebrow">
+          {scheme.category ?? "Scheme"} · {place}
+        </span>
+        {status && <StatusStamp status={status} />}
+      </div>
+
+      <h3 className="mt-3 font-display text-lg font-semibold leading-snug tracking-tight text-ink group-hover:text-saffron-ink">
+        {scheme.title}
+      </h3>
+
+      <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-ink-soft">
+        {reason ?? scheme.summary}
+      </p>
+
+      <div className="mt-4 flex items-center justify-between border-t border-line pt-3">
+        <span className="truncate text-xs text-muted">
+          {scheme.ministry ?? "Government of India"}
+        </span>
+        <span className="text-xs font-semibold text-saffron opacity-0 transition group-hover:opacity-100">
+          View →
+        </span>
+      </div>
+    </Link>
+  );
+}

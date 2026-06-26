@@ -18,6 +18,8 @@ export interface AttributeOption {
 export interface AttributeDef {
   /** Stable key used in EligibilityRule.attribute and CitizenProfile. */
   key: string;
+  /** Short noun label, e.g. "Age" — used in rule sentences ("Age must be…"). */
+  label: string;
   /** Human question shown in the finder. */
   question: string;
   type: AttributeType;
@@ -30,12 +32,14 @@ export interface AttributeDef {
 export const ATTRIBUTES = {
   age: {
     key: "age",
+    label: "Age",
     question: "How old are you?",
     type: "number",
     unit: "years",
   },
   gender: {
     key: "gender",
+    label: "Gender",
     question: "What is your gender?",
     type: "enum",
     options: [
@@ -46,17 +50,20 @@ export const ATTRIBUTES = {
   },
   state: {
     key: "state",
+    label: "State of residence",
     question: "Which state/UT do you live in?",
     type: "string",
   },
   annualIncome: {
     key: "annualIncome",
+    label: "Annual household income",
     question: "What is your household's annual income?",
     type: "number",
     unit: "₹",
   },
   occupation: {
     key: "occupation",
+    label: "Occupation",
     question: "What best describes your occupation?",
     type: "enum",
     options: [
@@ -72,6 +79,7 @@ export const ATTRIBUTES = {
   },
   socialCategory: {
     key: "socialCategory",
+    label: "Social category",
     question: "Which social category do you belong to?",
     type: "enum",
     options: [
@@ -83,11 +91,13 @@ export const ATTRIBUTES = {
   },
   isDisabled: {
     key: "isDisabled",
+    label: "Disability status",
     question: "Do you have a disability (Divyang)?",
     type: "boolean",
   },
   rationCardType: {
     key: "rationCardType",
+    label: "Ration card type",
     question: "What type of ration card do you have?",
     type: "enum",
     options: [

@@ -1,26 +1,105 @@
 @import "tailwindcss";
 
+/*
+ * IndiaConnect — "civic digital service" design tokens.
+ * Deep navy authority on cool paper, India saffron as the single accent,
+ * and a three-state status palette (eligible / needs-info / not-eligible).
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --paper: #f7f8fa;
+  --surface: #ffffff;
+  --surface-sunken: #eef1f5;
+  --ink: #14213d;
+  --ink-soft: #3c4863;
+  --muted: #69728a;
+  --line: #e2e6ec;
+  --line-strong: #cfd5df;
+
+  --saffron: #da6020;
+  --saffron-ink: #b44b14;
+  --saffron-soft: #fbe9dc;
+
+  --eligible: #1a7f4b;
+  --eligible-soft: #e1f1e8;
+  --pending: #9a6a11;
+  --pending-soft: #f8eed5;
+  --denied: #b23b39;
+  --denied-soft: #f6e3e2;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+
+  --color-saffron: var(--saffron);
+  --color-saffron-ink: var(--saffron-ink);
+  --color-saffron-soft: var(--saffron-soft);
+
+  --color-eligible: var(--eligible);
+  --color-eligible-soft: var(--eligible-soft);
+  --color-pending: var(--pending);
+  --color-pending-soft: var(--pending-soft);
+  --color-denied: var(--denied);
+  --color-denied-soft: var(--denied-soft);
+
+  --font-display: var(--font-display), "Bricolage Grotesque", sans-serif;
+  --font-sans: var(--font-body), "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: var(--font-mono-data), "IBM Plex Mono", monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  border-color: var(--line);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Mono eyebrow label used across cards and section headers. */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* The signature: an official "stamp" status seal. */
+.stamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.28rem 0.6rem;
+  border: 1.5px solid currentColor;
+  border-radius: 3px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .reveal {
+    animation: reveal 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  @keyframes reveal {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
 }
