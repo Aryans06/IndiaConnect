@@ -32,6 +32,12 @@ export function SiteHeader() {
             All schemes
           </Link>
           <Link
+            href="/assistant"
+            className="hidden rounded-md px-3 py-2 text-ink-soft transition hover:bg-surface-sunken hover:text-ink sm:block"
+          >
+            Ask AI
+          </Link>
+          <Link
             href="/finder"
             className="rounded-md bg-saffron px-4 py-2 font-semibold text-white shadow-sm transition hover:bg-saffron-ink"
           >
