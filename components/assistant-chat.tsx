@@ -2,6 +2,13 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
+import type { Locale } from "@/lib/i18n/config";
+import {
+  startListening,
+  speak,
+  speechRecognitionSupported,
+  speechSynthesisSupported,
+} from "@/lib/voice";
 
 interface Source {
   slug: string;
@@ -24,11 +31,23 @@ const SUGGESTIONS = [
   "I have a disability — what support is there?",
 ];
 
-export function AssistantChat() {
+export function AssistantChat({ locale }: { locale: Locale }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [listening, setListening] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+
+  function toggleMic() {
+    if (listening) return;
+    setListening(true);
+    const handle = startListening(
+      locale,
+      (text) => setInput(text),
+      () => setListening(false),
+    );
+    if (!handle) setListening(false);
+  }
 
   async function send(text: string) {
     const message = text.trim();
@@ -97,7 +116,7 @@ export function AssistantChat() {
       ) : (
         <div className="flex-1 space-y-5 py-6">
           {messages.map((m, i) => (
-            <MessageBubble key={i} message={m} />
+            <MessageBubble key={i} message={m} locale={locale} />
           ))}
           {loading && (
             <div className="flex items-center gap-2 text-sm text-muted">
@@ -124,6 +143,22 @@ export function AssistantChat() {
           placeholder="Tell me about yourself, or ask about a scheme…"
           className="w-full rounded-lg border border-line bg-surface px-4 py-3 text-sm outline-none transition focus:border-saffron focus:ring-2 focus:ring-saffron/20"
         />
+        {speechRecognitionSupported() && (
+          <button
+            type="button"
+            onClick={toggleMic}
+            aria-label="Speak your question"
+            className={
+              listening
+                ? "grid w-12 shrink-0 place-items-center rounded-lg border border-saffron bg-saffron-soft text-saffron-ink"
+                : "grid w-12 shrink-0 place-items-center rounded-lg border border-line bg-surface text-ink-soft transition hover:bg-surface-sunken"
+            }
+          >
+            <span aria-hidden className={listening ? "animate-pulse" : ""}>
+              🎤
+            </span>
+          </button>
+        )}
         <button
           type="submit"
           disabled={loading || !input.trim()}
@@ -136,7 +171,13 @@ export function AssistantChat() {
   );
 }
 
-function MessageBubble({ message }: { message: Message }) {
+function MessageBubble({
+  message,
+  locale,
+}: {
+  message: Message;
+  locale: Locale;
+}) {
   if (message.role === "user") {
     return (
       <div className="flex justify-end">
@@ -150,6 +191,14 @@ function MessageBubble({ message }: { message: Message }) {
     <div className="flex flex-col gap-3">
       <div className="max-w-[90%] rounded-2xl rounded-bl-sm border border-line bg-surface px-4 py-3 text-sm leading-relaxed text-ink">
         {message.content}
+        {speechSynthesisSupported() && (
+          <button
+            onClick={() => speak(message.content, locale)}
+            className="mt-2 flex items-center gap-1 text-xs font-semibold text-saffron-ink hover:underline"
+          >
+            <span aria-hidden>🔊</span> Listen
+          </button>
+        )}
         {message.grounded === false && (
           <p className="mt-2 border-t border-line pt-2 font-mono text-[0.65rem] uppercase tracking-wide text-muted">
             Showing matched schemes · AI answers need a Gemini key

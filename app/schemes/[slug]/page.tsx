@@ -8,6 +8,8 @@ import { getAuthedUser } from "@/lib/auth";
 import { getUserSchemeState } from "@/lib/account";
 import { getUserDocTypes, matchDocuments } from "@/lib/digilocker/documents";
 import { SchemeActions } from "@/components/scheme-actions";
+import { getLocale } from "@/lib/i18n/server";
+import { localizeScheme } from "@/lib/i18n/translate-scheme";
 
 export async function generateMetadata({
   params,
@@ -31,6 +33,10 @@ export default async function SchemeDetailPage({
 
   const place =
     scheme.level === "STATE" ? (scheme.state ?? "State scheme") : "All India";
+
+  // Localize the scheme's content into the active language (cached).
+  const locale = await getLocale();
+  const content = await localizeScheme(scheme, locale);
 
   // Personalize when signed in: bookmark/application state + DigiLocker
   // have/need document matching.
@@ -59,10 +65,10 @@ export default async function SchemeDetailPage({
           {scheme.category ?? "Scheme"} · {place}
         </p>
         <h1 className="mt-2 font-display text-3xl font-bold leading-tight tracking-tight sm:text-4xl">
-          {scheme.title}
+          {content.title}
         </h1>
         <p className="mt-3 text-lg leading-relaxed text-ink-soft">
-          {scheme.summary}
+          {content.summary}
         </p>
         {scheme.ministry && (
           <p className="mt-3 text-sm text-muted">{scheme.ministry}</p>
@@ -95,9 +101,9 @@ export default async function SchemeDetailPage({
         </div>
       </header>
 
-      {scheme.benefits && (
+      {content.benefits && (
         <Section title="What you get">
-          <Prose text={scheme.benefits} />
+          <Prose text={content.benefits} />
         </Section>
       )}
 

@@ -1,36 +1,35 @@
 import Link from "next/link";
 import { getSchemes } from "@/lib/schemes";
+import { getTranslator } from "@/lib/i18n/server";
 
 export default async function Home() {
-  const schemes = await getSchemes();
+  const [schemes, t] = await Promise.all([getSchemes(), getTranslator()]);
   const count = schemes.length;
 
   return (
     <main className="flex-1">
       {/* Hero */}
       <section className="mx-auto max-w-6xl px-5 pb-12 pt-16 sm:pt-24">
-        <p className="eyebrow reveal">For every citizen · आपके लिए</p>
+        <p className="eyebrow reveal">{t("home.eyebrow")}</p>
         <h1 className="reveal mt-3 max-w-3xl font-display text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-6xl">
-          The government has a scheme for you.
-          <span className="text-saffron"> Let's find it.</span>
+          {t("home.title1")}
+          <span className="text-saffron"> {t("home.title2")}</span>
         </h1>
         <p className="reveal mt-5 max-w-xl text-lg leading-relaxed text-ink-soft">
-          Thousands of welfare schemes exist — pensions, scholarships, housing,
-          healthcare. Answer a few simple questions and see the ones meant for
-          you, the documents you need, and how to apply.
+          {t("home.subtitle")}
         </p>
         <div className="reveal mt-8 flex flex-wrap items-center gap-3">
           <Link
             href="/finder"
             className="rounded-lg bg-saffron px-6 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-saffron-ink"
           >
-            Check my eligibility →
+            {t("home.cta.check")} →
           </Link>
           <Link
             href="/schemes"
             className="rounded-lg border border-line-strong bg-surface px-6 py-3.5 text-sm font-semibold text-ink transition hover:bg-surface-sunken"
           >
-            Browse {count} schemes
+            {t("home.cta.browse")} ({count})
           </Link>
         </div>
       </section>

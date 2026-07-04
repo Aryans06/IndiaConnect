@@ -8,6 +8,7 @@ import "./globals.css";
 import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 import { AuthProvider } from "@/components/auth-provider";
+import { getLocale } from "@/lib/i18n/server";
 
 const display = Bricolage_Grotesque({
   variable: "--font-display",
@@ -36,14 +37,15 @@ export const metadata: Metadata = {
     "Discover the government welfare schemes you're eligible for, the documents you need, and how to apply — in your language.",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const locale = await getLocale();
   return (
     <html
-      lang="en"
+      lang={locale}
       className={`${display.variable} ${body.variable} ${mono.variable} h-full`}
     >
       <body className="min-h-full flex flex-col bg-paper text-ink">

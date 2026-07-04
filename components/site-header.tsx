@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { isClerkConfigured } from "@/lib/auth";
 import { AuthNav } from "@/components/auth-nav";
+import { LanguageSwitcher } from "@/components/language-switcher";
+import { getTranslator } from "@/lib/i18n/server";
 
-export function SiteHeader() {
+export async function SiteHeader() {
+  const t = await getTranslator();
   const authMode: "clerk" | "mock" | "none" = isClerkConfigured()
     ? "clerk"
     : process.env.DEV_MOCK_AUTH === "true"
@@ -29,20 +32,21 @@ export function SiteHeader() {
             href="/schemes"
             className="rounded-md px-3 py-2 text-ink-soft transition hover:bg-surface-sunken hover:text-ink"
           >
-            All schemes
+            {t("nav.schemes")}
           </Link>
           <Link
             href="/assistant"
             className="hidden rounded-md px-3 py-2 text-ink-soft transition hover:bg-surface-sunken hover:text-ink sm:block"
           >
-            Ask AI
+            {t("nav.assistant")}
           </Link>
           <Link
             href="/finder"
             className="rounded-md bg-saffron px-4 py-2 font-semibold text-white shadow-sm transition hover:bg-saffron-ink"
           >
-            Check eligibility
+            {t("nav.check")}
           </Link>
+          <LanguageSwitcher current={t.locale} />
           <AuthNav mode={authMode} />
         </nav>
       </div>

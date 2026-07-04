@@ -63,6 +63,7 @@ export interface SchemeDetailView extends SchemeListEntry {
   benefits: string | null;
   howToApply: string | null;
   sourceUrl: string | null;
+  translations: unknown;
   rules: { attribute: string; operator: RuleOperator; value: RuleValue; orGroup: string | null }[];
   documents: { name: string; digilockerDocType: string | null }[];
   steps: { order: number; instruction: string }[];
@@ -91,6 +92,7 @@ export async function getSchemeBySlug(
     benefits: s.benefits,
     howToApply: s.howToApply,
     sourceUrl: s.sourceUrl,
+    translations: s.translations,
     rules: s.eligibilityRules.map((r) => ({
       attribute: r.attribute,
       operator: r.operator as RuleOperator,
