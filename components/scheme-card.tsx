@@ -17,7 +17,7 @@ export function SchemeCard({
   return (
     <Link
       href={`/schemes/${scheme.slug}`}
-      className="group flex flex-col rounded-lg border border-line bg-surface p-5 transition hover:border-line-strong hover:shadow-[0_1px_0_var(--color-line-strong),0_8px_24px_-12px_rgba(20,33,61,0.18)]"
+      className="lift group flex flex-col rounded-lg border border-line bg-surface p-5 hover:border-line-strong"
     >
       <div className="flex items-start justify-between gap-3">
         <span className="eyebrow">

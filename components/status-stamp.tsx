@@ -28,7 +28,7 @@ export function StatusStamp({
 }) {
   const { label, className: tone } = CONFIG[status];
   return (
-    <span className={`stamp ${tone} ${className}`}>
+    <span className={`stamp stamp-animate ${tone} ${className}`}>
       <span aria-hidden className="text-[0.85em]">
         {status === "eligible" ? "✓" : status === "needs_more_info" ? "?" : "✕"}
       </span>

@@ -15,12 +15,12 @@ export async function SiteHeader() {
     <header className="sticky top-0 z-40 border-b border-line bg-paper/85 backdrop-blur-sm">
       <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5">
         <Link href="/" className="flex items-center gap-2.5">
-          {/* Ashoka-chakra-inspired mark: a spoked ring in saffron. */}
+          {/* Chakra-inspired mark: an evergreen ring with a marigold hub. */}
           <span
             aria-hidden
-            className="grid h-8 w-8 place-items-center rounded-full border-2 border-saffron text-saffron"
+            className="grid h-8 w-8 place-items-center rounded-full border-2 border-brand text-brand transition-transform duration-500 hover:rotate-90"
           >
-            <span className="block h-3.5 w-3.5 rounded-full border-[2.5px] border-current" />
+            <span className="block h-3.5 w-3.5 rounded-full border-[2.5px] border-current bg-saffron/20" />
           </span>
           <span className="font-display text-lg font-bold tracking-tight">
             India<span className="text-saffron">Connect</span>
@@ -42,7 +42,7 @@ export async function SiteHeader() {
           </Link>
           <Link
             href="/finder"
-            className="rounded-md bg-saffron px-4 py-2 font-semibold text-white shadow-sm transition hover:bg-saffron-ink"
+            className="rounded-md bg-brand px-4 py-2 font-semibold text-white shadow-sm transition hover:bg-brand-deep"
           >
             {t("nav.check")}
           </Link>

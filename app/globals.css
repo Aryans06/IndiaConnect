@@ -1,30 +1,37 @@
 @import "tailwindcss";
 
 /*
- * IndiaConnect — "civic digital service" design tokens.
- * Deep navy authority on cool paper, India saffron as the single accent,
- * and a three-state status palette (eligible / needs-info / not-eligible).
+ * IndiaConnect — "Evergreen & Marigold".
+ * Deep evergreen (growth, prosperity, and "you qualify") as the brand fill,
+ * warm marigold gold as the accent, on a warm ivory ground. Legacy token names
+ * (`ink`, `saffron`) are kept to avoid churn: `ink` = deep evergreen text/dark
+ * fills, `saffron` = marigold accent, `brand` = evergreen primary fills.
  */
 :root {
-  --paper: #f7f8fa;
+  --paper: #faf6ec;
   --surface: #ffffff;
-  --surface-sunken: #eef1f5;
-  --ink: #14213d;
-  --ink-soft: #3c4863;
-  --muted: #69728a;
-  --line: #e2e6ec;
-  --line-strong: #cfd5df;
+  --surface-sunken: #f0ead9;
+  --ink: #12332a; /* deep evergreen — body text + dark fills */
+  --ink-soft: #46574e;
+  --muted: #71796f;
+  --line: #e8e0cd;
+  --line-strong: #d7ccb4;
 
-  --saffron: #da6020;
-  --saffron-ink: #b44b14;
-  --saffron-soft: #fbe9dc;
+  --brand: #0e4d40; /* evergreen — primary fills */
+  --brand-deep: #0a3a30;
+  --brand-soft: #e0ede8;
+  --brand-glow: #1f8a6f;
 
-  --eligible: #1a7f4b;
-  --eligible-soft: #e1f1e8;
-  --pending: #9a6a11;
-  --pending-soft: #f8eed5;
-  --denied: #b23b39;
-  --denied-soft: #f6e3e2;
+  --saffron: #e0982b; /* marigold — accent */
+  --saffron-ink: #9a5b0e; /* deep gold — links & small accent text */
+  --saffron-soft: #f8e9c8;
+
+  --eligible: #1f9d57;
+  --eligible-soft: #e2f3e7;
+  --pending: #b0770f;
+  --pending-soft: #f7ebcf;
+  --denied: #be443c;
+  --denied-soft: #f7e3e1;
 }
 
 @theme inline {
@@ -36,6 +43,11 @@
   --color-muted: var(--muted);
   --color-line: var(--line);
   --color-line-strong: var(--line-strong);
+
+  --color-brand: var(--brand);
+  --color-brand-deep: var(--brand-deep);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-glow: var(--brand-glow);
 
   --color-saffron: var(--saffron);
   --color-saffron-ink: var(--saffron-ink);
@@ -88,18 +100,103 @@ body {
   border-radius: 3px;
 }
 
+/* Reusable soft card shadow + hover lift. */
+.lift {
+  transition:
+    transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.25s ease;
+}
+.lift:hover {
+  transform: translateY(-3px);
+  box-shadow:
+    0 1px 0 var(--line-strong),
+    0 18px 40px -22px rgba(14, 77, 64, 0.45);
+}
+
+/* ------------------------------------------------------------------ */
+/* Motion — "lively but tasteful". All gated on reduced-motion.        */
+/* ------------------------------------------------------------------ */
 @media (prefers-reduced-motion: no-preference) {
+  /* Load-time entrance (hero). Stagger via inline --d delay. */
   .reveal {
-    animation: reveal 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation: rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation-delay: var(--d, 0s);
   }
-  @keyframes reveal {
+
+  /* Scroll-triggered reveal: hidden until .is-visible is added by the
+     IntersectionObserver in <Reveal>. */
+  .reveal-scroll {
+    opacity: 0;
+    transform: translateY(18px);
+    transition:
+      opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+    transition-delay: var(--d, 0s);
+  }
+  .reveal-scroll.is-visible {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* Stamp "thunks" into place. */
+  .stamp-animate {
+    animation: stamp-in 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+
+  /* Ambient aurora behind the hero. */
+  .aurora::before {
+    animation: drift 18s ease-in-out infinite alternate;
+  }
+
+  @keyframes rise {
     from {
       opacity: 0;
-      transform: translateY(8px);
+      transform: translateY(16px);
     }
     to {
       opacity: 1;
       transform: none;
     }
   }
+  @keyframes stamp-in {
+    0% {
+      opacity: 0;
+      transform: scale(1.35) rotate(-7deg);
+    }
+    60% {
+      opacity: 1;
+      transform: scale(0.96) rotate(1deg);
+    }
+    100% {
+      transform: scale(1) rotate(0);
+    }
+  }
+  @keyframes drift {
+    0% {
+      transform: translate3d(-6%, -4%, 0) scale(1);
+    }
+    100% {
+      transform: translate3d(6%, 4%, 0) scale(1.15);
+    }
+  }
+}
+
+/* Ambient gradient wash — evergreen + marigold, very soft. */
+.aurora {
+  position: relative;
+  isolation: isolate;
+}
+.aurora::before {
+  content: "";
+  position: absolute;
+  inset: -20% -10% auto -10%;
+  height: 130%;
+  z-index: -1;
+  background:
+    radial-gradient(40% 55% at 18% 20%, rgba(14, 77, 64, 0.18), transparent 70%),
+    radial-gradient(38% 50% at 82% 12%, rgba(224, 152, 43, 0.2), transparent 70%),
+    radial-gradient(45% 60% at 60% 85%, rgba(31, 138, 111, 0.14), transparent 70%);
+  filter: blur(10px);
+  pointer-events: none;
 }

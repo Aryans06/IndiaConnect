@@ -119,7 +119,7 @@ export function FinderWizard({ signedIn = false }: { signedIn?: boolean }) {
         </div>
         <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-sunken">
           <div
-            className="h-full rounded-full bg-saffron transition-all duration-300"
+            className="h-full rounded-full bg-brand transition-all duration-300"
             style={{ width: `${Math.max(progress, 4)}%` }}
           />
         </div>
@@ -345,7 +345,7 @@ function Results({
             <button
               onClick={saveProfile}
               disabled={saving}
-              className="shrink-0 rounded-lg bg-saffron px-4 py-2 text-sm font-semibold text-white transition hover:bg-saffron-ink disabled:opacity-60"
+              className="shrink-0 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-deep disabled:opacity-60"
             >
               {saving ? "Saving…" : "Save to profile"}
             </button>

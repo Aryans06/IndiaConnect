@@ -32,7 +32,7 @@ export default async function AccountPage({
         </p>
         <Link
           href="/finder"
-          className="mt-6 inline-block rounded-lg bg-saffron px-5 py-3 text-sm font-semibold text-white"
+          className="mt-6 inline-block rounded-lg bg-brand px-5 py-3 text-sm font-semibold text-white"
         >
           Check eligibility instead →
         </Link>

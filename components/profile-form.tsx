@@ -73,7 +73,7 @@ export function ProfileForm({ initial }: { initial: Profile }) {
         <button
           onClick={save}
           disabled={saving}
-          className="rounded-lg bg-saffron px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-saffron-ink disabled:opacity-60"
+          className="rounded-lg bg-brand px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-brand-deep disabled:opacity-60"
         >
           {saving ? "Saving…" : "Save profile"}
         </button>

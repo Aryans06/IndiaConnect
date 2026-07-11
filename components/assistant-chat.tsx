@@ -120,9 +120,9 @@ export function AssistantChat({ locale }: { locale: Locale }) {
           ))}
           {loading && (
             <div className="flex items-center gap-2 text-sm text-muted">
-              <span className="h-2 w-2 animate-bounce rounded-full bg-saffron [animation-delay:-0.2s]" />
-              <span className="h-2 w-2 animate-bounce rounded-full bg-saffron [animation-delay:-0.1s]" />
-              <span className="h-2 w-2 animate-bounce rounded-full bg-saffron" />
+              <span className="h-2 w-2 animate-bounce rounded-full bg-brand [animation-delay:-0.2s]" />
+              <span className="h-2 w-2 animate-bounce rounded-full bg-brand [animation-delay:-0.1s]" />
+              <span className="h-2 w-2 animate-bounce rounded-full bg-brand" />
             </div>
           )}
           <div ref={endRef} />
@@ -162,7 +162,7 @@ export function AssistantChat({ locale }: { locale: Locale }) {
         <button
           type="submit"
           disabled={loading || !input.trim()}
-          className="rounded-lg bg-saffron px-5 py-3 text-sm font-semibold text-white transition hover:bg-saffron-ink disabled:opacity-50"
+          className="rounded-lg bg-brand px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-deep disabled:opacity-50"
         >
           Ask
         </button>
