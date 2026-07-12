@@ -19,7 +19,51 @@ export async function generateMetadata({
   const { slug } = await params;
   const scheme = await getSchemeBySlug(slug);
   if (!scheme) return { title: "Scheme not found" };
-  return { title: scheme.title, description: scheme.summary };
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  return {
+    title: scheme.title,
+    description: scheme.summary,
+    alternates: { canonical: `${base}/schemes/${slug}` },
+    openGraph: {
+      title: scheme.title,
+      description: scheme.summary,
+      url: `${base}/schemes/${slug}`,
+      type: "article",
+    },
+  };
+}
+
+/** schema.org GovernmentService — lets search engines surface the scheme itself. */
+function SchemeJsonLd({
+  scheme,
+  url,
+}: {
+  scheme: NonNullable<Awaited<ReturnType<typeof getSchemeBySlug>>>;
+  url: string;
+}) {
+  const json = {
+    "@context": "https://schema.org",
+    "@type": "GovernmentService",
+    name: scheme.title,
+    description: scheme.summary,
+    serviceType: scheme.category ?? undefined,
+    url,
+    provider: {
+      "@type": "GovernmentOrganization",
+      name: scheme.ministry ?? "Government of India",
+    },
+    areaServed: {
+      "@type": "AdministrativeArea",
+      name: scheme.level === "STATE" ? (scheme.state ?? "India") : "India",
+    },
+    ...(scheme.sourceUrl ? { sameAs: scheme.sourceUrl } : {}),
+  };
+  return (
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(json) }}
+    />
+  );
 }
 
 export default async function SchemeDetailPage({
@@ -51,8 +95,11 @@ export default async function SchemeDetailPage({
     ownedTypes.size > 0,
   );
 
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+
   return (
     <main className="mx-auto w-full max-w-3xl flex-1 px-5 py-10">
+      <SchemeJsonLd scheme={scheme} url={`${base}/schemes/${slug}`} />
       <Link
         href="/schemes"
         className="eyebrow inline-flex items-center gap-1 hover:text-ink"

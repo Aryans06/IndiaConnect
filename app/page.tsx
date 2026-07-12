@@ -5,8 +5,11 @@ import { Reveal } from "@/components/reveal";
 import { CountUp } from "@/components/count-up";
 
 export default async function Home() {
-  const [schemes, t] = await Promise.all([getSchemes(), getTranslator()]);
-  const count = schemes.length;
+  const [result, t] = await Promise.all([
+    getSchemes({ perPage: 1 }),
+    getTranslator(),
+  ]);
+  const count = result.total;
 
   return (
     <main className="flex-1">

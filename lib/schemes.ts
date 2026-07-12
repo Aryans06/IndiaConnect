@@ -4,6 +4,7 @@
  * place.
  */
 import { prisma } from "@/lib/db";
+import type { Prisma } from "@/lib/generated/prisma/client";
 import type { SchemeLike } from "@/lib/eligibility/matcher";
 import type { RuleOperator, RuleValue } from "@/lib/eligibility/rules";
 
@@ -20,33 +21,95 @@ export interface SchemeListEntry {
 export interface DirectoryFilters {
   q?: string;
   category?: string;
+  /** State name; also matches central ("All India") schemes, which apply everywhere. */
+  state?: string;
+  level?: "CENTRAL" | "STATE";
+  page?: number;
+  perPage?: number;
+}
+
+export const DEFAULT_PER_PAGE = 24;
+
+function buildWhere(filters: DirectoryFilters) {
+  const and: Prisma.SchemeWhereInput[] = [];
+
+  if (filters.category) and.push({ category: filters.category });
+  if (filters.level) and.push({ level: filters.level });
+
+  // Picking a state shows that state's schemes AND central ones (which apply
+  // to everyone) — a citizen cares about what they can get, not who funds it.
+  if (filters.state) {
+    and.push({
+      OR: [{ state: filters.state }, { level: "CENTRAL" }],
+    });
+  }
+
+  if (filters.q) {
+    and.push({
+      OR: [
+        { title: { contains: filters.q, mode: "insensitive" } },
+        { summary: { contains: filters.q, mode: "insensitive" } },
+        { ministry: { contains: filters.q, mode: "insensitive" } },
+      ],
+    });
+  }
+
+  return and.length ? { AND: and } : {};
+}
+
+export interface SchemePage {
+  schemes: SchemeListEntry[];
+  total: number;
+  page: number;
+  perPage: number;
+  totalPages: number;
 }
 
 export async function getSchemes(
   filters: DirectoryFilters = {},
-): Promise<SchemeListEntry[]> {
+): Promise<SchemePage> {
+  const perPage = filters.perPage ?? DEFAULT_PER_PAGE;
+  const page = Math.max(1, filters.page ?? 1);
+  const where = buildWhere(filters);
+
+  const [rows, total] = await Promise.all([
+    prisma.scheme.findMany({
+      where,
+      // Central schemes first (they apply to everyone), then alphabetical.
+      orderBy: [{ level: "asc" }, { title: "asc" }],
+      skip: (page - 1) * perPage,
+      take: perPage,
+      select: {
+        slug: true,
+        title: true,
+        summary: true,
+        ministry: true,
+        category: true,
+        level: true,
+        state: true,
+      },
+    }),
+    prisma.scheme.count({ where }),
+  ]);
+
+  return {
+    schemes: rows,
+    total,
+    page,
+    perPage,
+    totalPages: Math.max(1, Math.ceil(total / perPage)),
+  };
+}
+
+/** Distinct states that actually have schemes (for the filter dropdown). */
+export async function getStates(): Promise<string[]> {
   const rows = await prisma.scheme.findMany({
-    where: {
-      category: filters.category || undefined,
-      OR: filters.q
-        ? [
-            { title: { contains: filters.q, mode: "insensitive" } },
-            { summary: { contains: filters.q, mode: "insensitive" } },
-          ]
-        : undefined,
-    },
-    orderBy: { title: "asc" },
-    select: {
-      slug: true,
-      title: true,
-      summary: true,
-      ministry: true,
-      category: true,
-      level: true,
-      state: true,
-    },
+    where: { state: { not: null }, level: "STATE" },
+    distinct: ["state"],
+    select: { state: true },
+    orderBy: { state: "asc" },
   });
-  return rows;
+  return rows.map((r) => r.state!).filter(Boolean);
 }
 
 export async function getCategories(): Promise<string[]> {

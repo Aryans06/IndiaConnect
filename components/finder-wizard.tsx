@@ -35,9 +35,15 @@ const STEP_ORDER: AttributeKey[] = [
   "state",
 ];
 
-export function FinderWizard({ signedIn = false }: { signedIn?: boolean }) {
+export function FinderWizard({
+  signedIn = false,
+  initialProfile = {},
+}: {
+  signedIn?: boolean;
+  initialProfile?: Record<string, string | number | boolean>;
+}) {
   const [step, setStep] = useState(0);
-  const [profile, setProfile] = useState<Profile>({});
+  const [profile, setProfile] = useState<Profile>(initialProfile as Profile);
   const [results, setResults] = useState<ResultItem[] | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -124,6 +130,21 @@ export function FinderWizard({ signedIn = false }: { signedIn?: boolean }) {
           />
         </div>
       </div>
+
+      {Object.keys(initialProfile).length > 0 && step === 0 && (
+        <div className="mb-6 flex flex-wrap items-center gap-3 rounded-lg border border-brand-soft bg-brand-soft/60 p-4">
+          <p className="flex-1 text-sm text-ink-soft">
+            We&apos;ve filled in your saved details. Change anything below, or
+            skip ahead.
+          </p>
+          <button
+            onClick={() => submit(profile)}
+            className="shrink-0 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-deep"
+          >
+            See my matches →
+          </button>
+        </div>
+      )}
 
       <div className="reveal" key={key}>
         <h2 className="font-display text-2xl font-bold tracking-tight">

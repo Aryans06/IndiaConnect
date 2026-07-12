@@ -1,24 +1,44 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { getSchemes, getCategories } from "@/lib/schemes";
+import { getSchemes, getCategories, getStates } from "@/lib/schemes";
 import { SchemeCard } from "@/components/scheme-card";
+import { getAuthedUser } from "@/lib/auth";
+import { getProfile } from "@/lib/account";
 
 export const metadata: Metadata = {
   title: "All schemes",
   description:
-    "Browse government welfare schemes by category, with eligibility, documents, and how to apply.",
+    "Browse government welfare schemes by category and state, with eligibility, documents, and how to apply.",
 };
+
+interface Search {
+  q?: string;
+  category?: string;
+  state?: string;
+  page?: string;
+}
 
 export default async function SchemesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; category?: string }>;
+  searchParams: Promise<Search>;
 }) {
-  const { q, category } = await searchParams;
-  const [schemes, categories] = await Promise.all([
-    getSchemes({ q, category }),
+  const sp = await searchParams;
+  const page = Number(sp.page ?? 1) || 1;
+
+  // Default the state filter to the citizen's own state when we know it.
+  const user = await getAuthedUser();
+  const profile = user ? await getProfile(user.id) : null;
+  const state = sp.state ?? profile?.state ?? undefined;
+
+  const [result, categories, states] = await Promise.all([
+    getSchemes({ q: sp.q, category: sp.category, state, page }),
     getCategories(),
+    getStates(),
   ]);
+
+  const { schemes, total, totalPages } = result;
+  const href = (over: Partial<Search>) => buildHref({ ...sp, state, ...over });
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-10">
@@ -29,22 +49,41 @@ export default async function SchemesPage({
       <p className="mt-2 max-w-2xl text-ink-soft">
         Every scheme in plain language — what you get, who qualifies, and the
         documents you need. Not sure where to start?{" "}
-        <Link href="/finder" className="font-semibold text-saffron-ink underline-offset-2 hover:underline">
+        <Link
+          href="/finder"
+          className="font-semibold text-saffron-ink underline-offset-2 hover:underline"
+        >
           Check your eligibility
         </Link>
         .
       </p>
 
-      {/* Search */}
-      <form className="mt-6 flex gap-2" action="/schemes">
-        {category && <input type="hidden" name="category" value={category} />}
+      {/* Search + state */}
+      <form className="mt-6 flex flex-wrap gap-2" action="/schemes">
+        {sp.category && (
+          <input type="hidden" name="category" value={sp.category} />
+        )}
         <input
           type="search"
           name="q"
-          defaultValue={q}
+          defaultValue={sp.q}
           placeholder="Search schemes, e.g. pension, scholarship, housing…"
-          className="w-full rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none transition focus:border-saffron focus:ring-2 focus:ring-saffron/20"
+          className="min-w-0 flex-1 rounded-lg border border-line bg-surface px-4 py-2.5 text-sm outline-none transition focus:border-saffron focus:ring-2 focus:ring-saffron/20"
         />
+        {states.length > 0 && (
+          <select
+            name="state"
+            defaultValue={state ?? ""}
+            className="rounded-lg border border-line bg-surface px-3 py-2.5 text-sm outline-none transition focus:border-saffron"
+          >
+            <option value="">All states</option>
+            {states.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+        )}
         <button
           type="submit"
           className="rounded-lg bg-ink px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-ink-soft"
@@ -55,22 +94,28 @@ export default async function SchemesPage({
 
       {/* Category filter */}
       <div className="mt-4 flex flex-wrap gap-2">
-        <CategoryChip label="All" href={buildHref(q, undefined)} active={!category} />
+        <Chip
+          label="All"
+          href={href({ category: undefined, page: undefined })}
+          active={!sp.category}
+        />
         {categories.map((c) => (
-          <CategoryChip
+          <Chip
             key={c}
             label={c}
-            href={buildHref(q, c)}
-            active={category === c}
+            href={href({ category: c, page: undefined })}
+            active={sp.category === c}
           />
         ))}
       </div>
 
       {/* Results */}
       <p className="eyebrow mt-8">
-        {schemes.length} scheme{schemes.length === 1 ? "" : "s"}
-        {category ? ` in ${category}` : ""}
-        {q ? ` matching “${q}”` : ""}
+        {total} scheme{total === 1 ? "" : "s"}
+        {sp.category ? ` in ${sp.category}` : ""}
+        {state ? ` for ${state}` : ""}
+        {sp.q ? ` matching “${sp.q}”` : ""}
+        {totalPages > 1 ? ` · page ${page} of ${totalPages}` : ""}
       </p>
 
       {schemes.length === 0 ? (
@@ -93,19 +138,38 @@ export default async function SchemesPage({
           ))}
         </div>
       )}
+
+      {totalPages > 1 && (
+        <nav className="mt-10 flex items-center justify-center gap-2">
+          <PageLink
+            href={href({ page: String(page - 1) })}
+            disabled={page <= 1}
+            label="← Previous"
+          />
+          <span className="px-3 font-mono text-xs text-muted">
+            {page} / {totalPages}
+          </span>
+          <PageLink
+            href={href({ page: String(page + 1) })}
+            disabled={page >= totalPages}
+            label="Next →"
+          />
+        </nav>
+      )}
     </main>
   );
 }
 
-function buildHref(q?: string, category?: string) {
-  const params = new URLSearchParams();
-  if (q) params.set("q", q);
-  if (category) params.set("category", category);
-  const qs = params.toString();
+function buildHref(params: Record<string, string | undefined>) {
+  const sp = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v) sp.set(k, v);
+  }
+  const qs = sp.toString();
   return qs ? `/schemes?${qs}` : "/schemes";
 }
 
-function CategoryChip({
+function Chip({
   label,
   href,
   active,
@@ -122,6 +186,32 @@ function CategoryChip({
           ? "rounded-full border border-ink bg-ink px-3.5 py-1.5 text-xs font-semibold text-white"
           : "rounded-full border border-line bg-surface px-3.5 py-1.5 text-xs font-medium text-ink-soft transition hover:border-line-strong hover:text-ink"
       }
+    >
+      {label}
+    </Link>
+  );
+}
+
+function PageLink({
+  href,
+  disabled,
+  label,
+}: {
+  href: string;
+  disabled: boolean;
+  label: string;
+}) {
+  if (disabled) {
+    return (
+      <span className="cursor-not-allowed rounded-lg border border-line px-4 py-2 text-sm font-semibold text-muted opacity-50">
+        {label}
+      </span>
+    );
+  }
+  return (
+    <Link
+      href={href}
+      className="rounded-lg border border-line bg-surface px-4 py-2 text-sm font-semibold text-ink transition hover:bg-surface-sunken"
     >
       {label}
     </Link>
