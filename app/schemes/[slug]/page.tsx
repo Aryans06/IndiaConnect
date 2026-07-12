@@ -6,8 +6,15 @@ import { getAttribute } from "@/lib/eligibility/attributes";
 import type { RuleOperator, RuleValue } from "@/lib/eligibility/rules";
 import { getAuthedUser } from "@/lib/auth";
 import { getUserSchemeState } from "@/lib/account";
-import { getUserDocTypes, matchDocuments } from "@/lib/digilocker/documents";
+import {
+  getUserDocTypes,
+  matchDocuments,
+  type DocMatch,
+} from "@/lib/digilocker/documents";
+import { getDocGuide } from "@/lib/documents-guide";
 import { SchemeActions } from "@/components/scheme-actions";
+import { ApplicationSteps } from "@/components/application-steps";
+import { DeadlineBadge } from "@/components/deadline-badge";
 import { getLocale } from "@/lib/i18n/server";
 import { localizeScheme } from "@/lib/i18n/translate-scheme";
 
@@ -87,7 +94,11 @@ export default async function SchemeDetailPage({
   const user = await getAuthedUser();
   const userState = user
     ? await getUserSchemeState(user.id, slug)
-    : { bookmarked: false, applicationStatus: null };
+    : {
+        bookmarked: false,
+        applicationStatus: null,
+        completedSteps: [] as number[],
+      };
   const ownedTypes = user ? await getUserDocTypes(user.id) : new Set<string>();
   const docMatch = matchDocuments(
     scheme.documents,
@@ -108,9 +119,12 @@ export default async function SchemeDetailPage({
       </Link>
 
       <header className="mt-4 border-b border-line pb-6">
-        <p className="eyebrow">
-          {scheme.category ?? "Scheme"} · {place}
-        </p>
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="eyebrow">
+            {scheme.category ?? "Scheme"} · {place}
+          </p>
+          <DeadlineBadge closeDate={scheme.closeDate} />
+        </div>
         <h1 className="mt-2 font-display text-3xl font-bold leading-tight tracking-tight sm:text-4xl">
           {content.title}
         </h1>
@@ -197,29 +211,11 @@ export default async function SchemeDetailPage({
           )}
           <ul className="grid gap-2 sm:grid-cols-2">
             {docMatch.matches.map((d, i) => (
-              <li
+              <DocumentItem
                 key={i}
-                className="flex items-center gap-2 rounded-lg border border-line bg-surface px-3 py-2.5 text-sm"
-              >
-                {docMatch.connected && d.checkable ? (
-                  <span
-                    aria-hidden
-                    className={d.have ? "text-eligible" : "text-denied"}
-                  >
-                    {d.have ? "✓" : "✕"}
-                  </span>
-                ) : (
-                  <span aria-hidden className="text-saffron">
-                    ▸
-                  </span>
-                )}
-                <span className={d.have ? "text-ink" : ""}>{d.name}</span>
-                {docMatch.connected && d.have && (
-                  <span className="ml-auto text-xs font-medium text-eligible">
-                    In DigiLocker
-                  </span>
-                )}
-              </li>
+                doc={d}
+                connected={docMatch.connected}
+              />
             ))}
           </ul>
           {!docMatch.connected && (
@@ -236,16 +232,12 @@ export default async function SchemeDetailPage({
 
       {scheme.steps.length > 0 && (
         <Section title="How to apply">
-          <ol className="space-y-3">
-            {scheme.steps.map((s) => (
-              <li key={s.order} className="flex gap-3">
-                <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-saffron font-mono text-xs font-semibold text-saffron-ink">
-                  {s.order}
-                </span>
-                <span className="pt-0.5 text-ink-soft">{s.instruction}</span>
-              </li>
-            ))}
-          </ol>
+          <ApplicationSteps
+            slug={scheme.slug}
+            steps={scheme.steps}
+            signedIn={Boolean(user)}
+            initialCompleted={userState.completedSteps}
+          />
         </Section>
       )}
 
@@ -255,6 +247,71 @@ export default async function SchemeDetailPage({
         official scheme website before applying.
       </p>
     </main>
+  );
+}
+
+/**
+ * A required document, plus — when the citizen doesn't already have it — plain
+ * guidance on how to actually obtain it. Uses <details> so it works without JS.
+ */
+function DocumentItem({
+  doc,
+  connected,
+}: {
+  doc: DocMatch;
+  connected: boolean;
+}) {
+  const guide = getDocGuide(doc.digilockerDocType);
+  const have = connected && doc.have;
+
+  return (
+    <li className="rounded-lg border border-line bg-surface px-3 py-2.5 text-sm">
+      <div className="flex items-center gap-2">
+        {connected && doc.checkable ? (
+          <span aria-hidden className={have ? "text-eligible" : "text-denied"}>
+            {have ? "✓" : "✕"}
+          </span>
+        ) : (
+          <span aria-hidden className="text-saffron">
+            ▸
+          </span>
+        )}
+        <span className={have ? "text-ink" : ""}>{doc.name}</span>
+        {have && (
+          <span className="ml-auto shrink-0 text-xs font-medium text-eligible">
+            In DigiLocker
+          </span>
+        )}
+      </div>
+
+      {!have && guide && (
+        <details className="group mt-2">
+          <summary className="cursor-pointer list-none text-xs font-semibold text-saffron-ink hover:underline">
+            How to get it →
+          </summary>
+          <div className="mt-2 space-y-1 border-t border-line pt-2 text-xs leading-relaxed text-ink-soft">
+            <p>
+              <span className="font-semibold text-ink">Issued by:</span>{" "}
+              {guide.issuer}
+            </p>
+            <p>{guide.howTo}</p>
+            {guide.timeline && (
+              <p className="text-muted">⏱ {guide.timeline}</p>
+            )}
+            {guide.url && (
+              <a
+                href={guide.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block font-semibold text-saffron-ink hover:underline"
+              >
+                Official portal ↗
+              </a>
+            )}
+          </div>
+        </details>
+      )}
+    </li>
   );
 }
 

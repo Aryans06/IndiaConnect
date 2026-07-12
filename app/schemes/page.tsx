@@ -15,6 +15,7 @@ interface Search {
   q?: string;
   category?: string;
   state?: string;
+  sort?: string;
   page?: string;
 }
 
@@ -31,8 +32,10 @@ export default async function SchemesPage({
   const profile = user ? await getProfile(user.id) : null;
   const state = sp.state ?? profile?.state ?? undefined;
 
+  const sort = sp.sort === "closing" ? "closing" : "default";
+
   const [result, categories, states] = await Promise.all([
-    getSchemes({ q: sp.q, category: sp.category, state, page }),
+    getSchemes({ q: sp.q, category: sp.category, state, sort, page }),
     getCategories(),
     getStates(),
   ]);
@@ -107,6 +110,21 @@ export default async function SchemesPage({
             active={sp.category === c}
           />
         ))}
+      </div>
+
+      {/* Sort */}
+      <div className="mt-4 flex items-center gap-2">
+        <span className="eyebrow">Sort</span>
+        <Chip
+          label="Default"
+          href={href({ sort: undefined, page: undefined })}
+          active={sort === "default"}
+        />
+        <Chip
+          label="⏳ Closing soon"
+          href={href({ sort: "closing", page: undefined })}
+          active={sort === "closing"}
+        />
       </div>
 
       {/* Results */}

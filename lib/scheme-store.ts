@@ -18,6 +18,9 @@ export interface NormalizedScheme {
   benefits?: string | null;
   howToApply?: string | null;
   sourceUrl?: string | null;
+  eligibilityText?: string | null;
+  openDate?: Date | null;
+  closeDate?: Date | null;
   rules: {
     attribute: string;
     operator: RuleOperator;
@@ -48,6 +51,9 @@ export async function upsertScheme(scheme: NormalizedScheme) {
         benefits: scheme.benefits ?? null,
         howToApply: scheme.howToApply ?? null,
         sourceUrl: scheme.sourceUrl ?? null,
+        eligibilityText: scheme.eligibilityText ?? null,
+        openDate: scheme.openDate ?? null,
+        closeDate: scheme.closeDate ?? null,
       },
       update: {
         title: scheme.title,
@@ -59,15 +65,19 @@ export async function upsertScheme(scheme: NormalizedScheme) {
         benefits: scheme.benefits ?? null,
         howToApply: scheme.howToApply ?? null,
         sourceUrl: scheme.sourceUrl ?? null,
+        eligibilityText: scheme.eligibilityText ?? null,
+        openDate: scheme.openDate ?? null,
+        closeDate: scheme.closeDate ?? null,
       },
     });
 
-    // Replace children so the scheme converges to this definition.
-    await tx.eligibilityRule.deleteMany({ where: { schemeId: saved.id } });
-    await tx.requiredDocument.deleteMany({ where: { schemeId: saved.id } });
-    await tx.applicationStep.deleteMany({ where: { schemeId: saved.id } });
-
+    // Replace each child collection ONLY when the caller actually supplies one.
+    // An empty array means "I have no data for this", not "delete what's there":
+    // the scraper supplies no documents/steps (and no rules when Gemini is
+    // unavailable), and must never clobber the hand-authored curated data for
+    // the same slug.
     if (scheme.rules.length) {
+      await tx.eligibilityRule.deleteMany({ where: { schemeId: saved.id } });
       await tx.eligibilityRule.createMany({
         data: scheme.rules.map((r) => ({
           schemeId: saved.id,
@@ -80,6 +90,7 @@ export async function upsertScheme(scheme: NormalizedScheme) {
       });
     }
     if (scheme.documents.length) {
+      await tx.requiredDocument.deleteMany({ where: { schemeId: saved.id } });
       await tx.requiredDocument.createMany({
         data: scheme.documents.map((d) => ({
           schemeId: saved.id,
@@ -89,6 +100,7 @@ export async function upsertScheme(scheme: NormalizedScheme) {
       });
     }
     if (scheme.steps.length) {
+      await tx.applicationStep.deleteMany({ where: { schemeId: saved.id } });
       await tx.applicationStep.createMany({
         data: scheme.steps.map((instruction, i) => ({
           schemeId: saved.id,

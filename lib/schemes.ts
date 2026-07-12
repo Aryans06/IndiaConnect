@@ -16,6 +16,7 @@ export interface SchemeListEntry {
   category: string | null;
   level: "CENTRAL" | "STATE";
   state: string | null;
+  closeDate: Date | null;
 }
 
 export interface DirectoryFilters {
@@ -24,6 +25,8 @@ export interface DirectoryFilters {
   /** State name; also matches central ("All India") schemes, which apply everywhere. */
   state?: string;
   level?: "CENTRAL" | "STATE";
+  /** "closing" surfaces schemes with the nearest application deadline first. */
+  sort?: "default" | "closing";
   page?: number;
   perPage?: number;
 }
@@ -54,6 +57,14 @@ function buildWhere(filters: DirectoryFilters) {
     });
   }
 
+  // "Closing soon" means schemes you can still apply to — surfacing already
+  // expired ones first would be worse than not sorting at all.
+  if (filters.sort === "closing") {
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    and.push({ closeDate: { gte: startOfToday } });
+  }
+
   return and.length ? { AND: and } : {};
 }
 
@@ -72,11 +83,17 @@ export async function getSchemes(
   const page = Math.max(1, filters.page ?? 1);
   const where = buildWhere(filters);
 
+  const orderBy: Prisma.SchemeOrderByWithRelationInput[] =
+    filters.sort === "closing"
+      ? // Nearest deadline first; schemes with no deadline sink to the bottom.
+        [{ closeDate: { sort: "asc", nulls: "last" } }, { title: "asc" }]
+      : // Central schemes first (they apply to everyone), then alphabetical.
+        [{ level: "asc" }, { title: "asc" }];
+
   const [rows, total] = await Promise.all([
     prisma.scheme.findMany({
       where,
-      // Central schemes first (they apply to everyone), then alphabetical.
-      orderBy: [{ level: "asc" }, { title: "asc" }],
+      orderBy,
       skip: (page - 1) * perPage,
       take: perPage,
       select: {
@@ -87,6 +104,7 @@ export async function getSchemes(
         category: true,
         level: true,
         state: true,
+        closeDate: true,
       },
     }),
     prisma.scheme.count({ where }),
@@ -152,6 +170,7 @@ export async function getSchemeBySlug(
     category: s.category,
     level: s.level,
     state: s.state,
+    closeDate: s.closeDate,
     benefits: s.benefits,
     howToApply: s.howToApply,
     sourceUrl: s.sourceUrl,
@@ -173,11 +192,20 @@ export async function getSchemeBySlug(
   };
 }
 
-/** All schemes with their rules, shaped for the eligibility matcher. */
-export async function getSchemesForMatching(): Promise<
-  (SchemeLike & { summary: string; category: string | null })[]
-> {
+/**
+ * All schemes with their rules, shaped for the eligibility matcher.
+ *
+ * When the citizen's state is known, state schemes from *other* states are
+ * excluded — a citizen in Bihar can't claim a Gujarat scheme, so showing it
+ * would be worse than useless. Central schemes always apply.
+ */
+export async function getSchemesForMatching(
+  state?: string | null,
+): Promise<(SchemeLike & { summary: string; category: string | null })[]> {
   const rows = await prisma.scheme.findMany({
+    where: state
+      ? { OR: [{ level: "CENTRAL" }, { state }] }
+      : undefined,
     include: { eligibilityRules: true },
     orderBy: { title: "asc" },
   });

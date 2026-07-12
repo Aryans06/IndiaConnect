@@ -111,6 +111,42 @@ export async function setApplicationStatus(
   return { status };
 }
 
+/**
+ * Ticks an application step on or off. Creates the Application (as IN_PROGRESS)
+ * on first tick — starting the checklist *is* starting the application.
+ */
+export async function setStepCompletion(
+  userId: string,
+  slug: string,
+  order: number,
+  done: boolean,
+): Promise<{ completedSteps: number[] }> {
+  const scheme = await prisma.scheme.findUnique({ where: { slug } });
+  if (!scheme) throw new Error("SCHEME_NOT_FOUND");
+
+  const existing = await prisma.application.findUnique({
+    where: { userId_schemeId: { userId, schemeId: scheme.id } },
+  });
+
+  const current = new Set(existing?.completedSteps ?? []);
+  if (done) current.add(order);
+  else current.delete(order);
+  const completedSteps = [...current].sort((a, b) => a - b);
+
+  const saved = await prisma.application.upsert({
+    where: { userId_schemeId: { userId, schemeId: scheme.id } },
+    create: {
+      userId,
+      schemeId: scheme.id,
+      status: "IN_PROGRESS",
+      completedSteps,
+    },
+    update: { completedSteps },
+  });
+
+  return { completedSteps: saved.completedSteps };
+}
+
 export async function getBookmarks(userId: string) {
   return prisma.bookmark.findMany({
     where: { userId },
@@ -130,7 +166,9 @@ export async function getApplications(userId: string) {
 /** What a scheme detail page needs about the current user's relationship to it. */
 export async function getUserSchemeState(userId: string, slug: string) {
   const scheme = await prisma.scheme.findUnique({ where: { slug } });
-  if (!scheme) return { bookmarked: false, applicationStatus: null };
+  if (!scheme) {
+    return { bookmarked: false, applicationStatus: null, completedSteps: [] };
+  }
   const [bookmark, application] = await Promise.all([
     prisma.bookmark.findUnique({
       where: { userId_schemeId: { userId, schemeId: scheme.id } },
@@ -142,5 +180,6 @@ export async function getUserSchemeState(userId: string, slug: string) {
   return {
     bookmarked: Boolean(bookmark),
     applicationStatus: application?.status ?? null,
+    completedSteps: application?.completedSteps ?? [],
   };
 }

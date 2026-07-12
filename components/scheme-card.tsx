@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { SchemeListEntry } from "@/lib/schemes";
 import type { EligibilityStatus } from "@/lib/eligibility/matcher";
 import { StatusStamp } from "./status-stamp";
+import { DeadlineBadge } from "./deadline-badge";
 
 export function SchemeCard({
   scheme,
@@ -34,11 +35,12 @@ export function SchemeCard({
         {reason ?? scheme.summary}
       </p>
 
-      <div className="mt-4 flex items-center justify-between border-t border-line pt-3">
+      <div className="mt-4 flex items-center justify-between gap-2 border-t border-line pt-3">
+        <DeadlineBadge closeDate={scheme.closeDate} />
         <span className="truncate text-xs text-muted">
           {scheme.ministry ?? "Government of India"}
         </span>
-        <span className="text-xs font-semibold text-saffron opacity-0 transition group-hover:opacity-100">
+        <span className="shrink-0 text-xs font-semibold text-saffron opacity-0 transition group-hover:opacity-100">
           View →
         </span>
       </div>

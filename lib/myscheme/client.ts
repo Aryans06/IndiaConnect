@@ -39,17 +39,43 @@ export interface SchemeDetail {
   summary: string;
   benefitsMd?: string | null;
   eligibilityMd?: string | null;
+  openDate?: Date | null;
+  closeDate?: Date | null;
+}
+
+/** myScheme returns ISO date strings or null. */
+function parseDate(v: unknown): Date | null {
+  if (typeof v !== "string" || !v.trim()) return null;
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? null : d;
 }
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-async function getJson(url: string): Promise<unknown> {
+/**
+ * Fetch with retry + exponential backoff. myScheme rate-limits aggressively
+ * (429) and occasionally 5xxs; without backoff a bulk ingest loses most of its
+ * requests. Honours Retry-After when present.
+ */
+async function getJson(url: string, attempt = 0): Promise<unknown> {
+  const MAX_RETRIES = 5;
   const res = await fetch(url, { headers: HEADERS });
-  if (!res.ok) {
-    throw new Error(`myScheme ${res.status} for ${url}`);
+
+  if (res.status === 429 || res.status >= 500) {
+    if (attempt >= MAX_RETRIES) {
+      throw new Error(`myScheme ${res.status} after ${MAX_RETRIES} retries`);
+    }
+    const retryAfter = Number(res.headers.get("retry-after"));
+    const backoff = Number.isFinite(retryAfter) && retryAfter > 0
+      ? retryAfter * 1000
+      : Math.min(30_000, 1000 * 2 ** attempt) + Math.random() * 500;
+    await sleep(backoff);
+    return getJson(url, attempt + 1);
   }
+
+  if (!res.ok) throw new Error(`myScheme ${res.status} for ${url}`);
   return res.json();
 }
 
@@ -141,5 +167,7 @@ export async function getSchemeDetail(
     benefitsMd: (content.benefits_md as string | undefined) ?? null,
     eligibilityMd:
       (eligibility.eligibilityDescription_md as string | undefined) ?? null,
+    openDate: parseDate(basic.schemeOpenDate),
+    closeDate: parseDate(basic.schemeCloseDate),
   };
 }

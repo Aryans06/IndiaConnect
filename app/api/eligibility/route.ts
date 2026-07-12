@@ -31,7 +31,12 @@ export async function POST(req: Request) {
     );
   }
 
-  const schemes = await getSchemesForMatching();
+  // Scope state schemes to the citizen's own state — a Bihar resident can't
+  // claim a Gujarat scheme.
+  const profileState = parsed.data.profile.state;
+  const schemes = await getSchemesForMatching(
+    typeof profileState === "string" ? profileState : undefined,
+  );
   const meta = new Map(
     schemes.map((s) => [s.slug, { summary: s.summary, category: s.category }]),
   );

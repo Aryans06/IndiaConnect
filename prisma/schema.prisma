@@ -33,6 +33,13 @@ model Scheme {
   benefits     String? // what the citizen gets
   howToApply   String? // narrative fallback; structured steps below
   sourceUrl    String?
+  // Raw eligibility criteria as published. Kept so rules can be (re)normalized
+  // later without re-scraping — e.g. when Gemini quota becomes available.
+  eligibilityText String?
+  // Application window. closeDate drives "closes in N days" urgency badges;
+  // many citizens miss schemes purely because they miss the deadline.
+  openDate     DateTime?
+  closeDate    DateTime?
   // Cache of translated content keyed by locale -> { title, summary, ... }
   translations Json?
 
@@ -47,6 +54,7 @@ model Scheme {
 
   @@index([category])
   @@index([level, state])
+  @@index([closeDate])
 }
 
 // A single structured eligibility condition. The matcher evaluates a
@@ -157,6 +165,10 @@ model Application {
   schemeId  String
   scheme    Scheme            @relation(fields: [schemeId], references: [id], onDelete: Cascade)
   status    ApplicationStatus @default(SAVED)
+  // Which application steps the citizen has ticked off, by step `order`.
+  // Stored as order numbers (not step ids) because re-ingesting a scheme
+  // recreates its steps with new ids, but the ordering is stable.
+  completedSteps Int[]        @default([])
   createdAt DateTime          @default(now())
   updatedAt DateTime          @updatedAt
 
