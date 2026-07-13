@@ -1,12 +1,15 @@
 /**
- * Localizes scheme content (title / summary / benefits) into the active locale
- * via Bhashini, caching results in Scheme.translations so each scheme+language
- * is only ever translated once. Falls back to English when Bhashini isn't
- * configured — the app stays fully usable, just in English content.
+ * Localizes scheme content (title / summary / benefits) into the active locale,
+ * caching results in Scheme.translations so each scheme+language is translated
+ * exactly once — which keeps this affordable on a free-tier quota.
+ *
+ * The translator itself (Gemini or Bhashini) is chosen in lib/translate. When
+ * none is configured, content falls back to English and the app stays fully
+ * usable.
  */
 import { prisma } from "@/lib/db";
 import type { Prisma } from "@/lib/generated/prisma/client";
-import { translateBatch, hasBhashini } from "@/lib/bhashini/client";
+import { translateBatch, canTranslate } from "@/lib/translate";
 import type { Locale } from "./config";
 
 export interface LocalizedContent {
@@ -37,7 +40,7 @@ export async function localizeScheme(
   const cache = (scheme.translations as Cache | null) ?? {};
   if (cache[locale]) return cache[locale];
 
-  if (!hasBhashini()) return english;
+  if (!canTranslate()) return english;
 
   const [title, summary, benefits] = await translateBatch(
     [scheme.title, scheme.summary, scheme.benefits ?? ""],
