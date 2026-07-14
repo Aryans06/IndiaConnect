@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getSchemesForMatching } from "@/lib/schemes";
 import { matchSchemes, type Profile } from "@/lib/eligibility/matcher";
 import { ATTRIBUTE_KEYS } from "@/lib/eligibility/attributes";
+import { rateLimit, clientKey, rateLimitHeaders } from "@/lib/rate-limit";
 
 // Partial: the finder lets users skip questions, so any subset of keys is OK.
 const profileSchema = z.partialRecord(
@@ -15,7 +16,19 @@ const bodySchema = z.object({
   includeIneligible: z.boolean().optional(),
 });
 
+// Public and runs a full match over the catalog — capped, but generously, since
+// the finder legitimately calls it as people work through the questionnaire.
+const LIMIT = Number(process.env.ELIGIBILITY_RATE_LIMIT ?? 60);
+
 export async function POST(req: Request) {
+  const limit = rateLimit(clientKey(req, "eligibility"), LIMIT, 60_000);
+  if (!limit.ok) {
+    return NextResponse.json(
+      { error: "Too many requests. Please slow down." },
+      { status: 429, headers: rateLimitHeaders(limit) },
+    );
+  }
+
   let body: unknown;
   try {
     body = await req.json();
