@@ -46,6 +46,11 @@ model Scheme {
   closeDate    DateTime?
   // Cache of translated content keyed by locale -> { title, summary, ... }
   translations Json?
+  // Postgres full-text index over the searchable fields, maintained by the DB
+  // (GENERATED ALWAYS ... STORED). Lets both the directory and the assistant's
+  // retrieval rank thousands of schemes in the database instead of loading the
+  // whole catalog into memory. Managed via raw SQL in the migration.
+  searchVector Unsupported("tsvector")?
 
   eligibilityRules  EligibilityRule[]
   requiredDocuments RequiredDocument[]
@@ -59,6 +64,7 @@ model Scheme {
   @@index([category])
   @@index([level, state])
   @@index([closeDate])
+  @@index([searchVector], type: Gin)
 }
 
 // A single structured eligibility condition. The matcher evaluates a

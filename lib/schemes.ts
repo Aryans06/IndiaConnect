@@ -193,19 +193,29 @@ export async function getSchemeBySlug(
 }
 
 /**
- * All schemes with their rules, shaped for the eligibility matcher.
+ * Schemes that can actually be matched, shaped for the eligibility matcher.
+ *
+ * Only schemes that have at least one structured rule are returned. This is a
+ * correctness guard, not an optimisation: the matcher treats "no rules" as
+ * "open to everyone", which was true of the hand-curated set but is badly wrong
+ * for scraped schemes whose criteria simply haven't been normalized yet. Without
+ * this filter a farmer is told they qualify for thousands of schemes we know
+ * nothing about — claiming eligibility with no evidence, which is the precise
+ * harm this app exists to prevent. Un-normalized schemes stay fully browsable in
+ * the directory; they just don't assert a match.
  *
  * When the citizen's state is known, state schemes from *other* states are
- * excluded — a citizen in Bihar can't claim a Gujarat scheme, so showing it
- * would be worse than useless. Central schemes always apply.
+ * excluded — a citizen in Bihar can't claim a Gujarat scheme. Central schemes
+ * always apply.
  */
 export async function getSchemesForMatching(
   state?: string | null,
 ): Promise<(SchemeLike & { summary: string; category: string | null })[]> {
   const rows = await prisma.scheme.findMany({
-    where: state
-      ? { OR: [{ level: "CENTRAL" }, { state }] }
-      : undefined,
+    where: {
+      eligibilityRules: { some: {} },
+      ...(state ? { OR: [{ level: "CENTRAL" }, { state }] } : {}),
+    },
     include: { eligibilityRules: true },
     orderBy: { title: "asc" },
   });

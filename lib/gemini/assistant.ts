@@ -11,6 +11,7 @@
  * scale, swap `retrieveSchemes` for embedding search over the same summaries.
  */
 import { prisma } from "@/lib/db";
+import { searchSchemeIds } from "@/lib/search";
 import { getGemini, GEMINI_MODEL, hasGeminiKey } from "./client";
 import { matchSchemes, type SchemeLike, type Profile } from "@/lib/eligibility/matcher";
 import type { RuleOperator, RuleValue } from "@/lib/eligibility/rules";
@@ -53,26 +54,42 @@ export async function retrieveSchemes(
   profile?: Profile,
   limit = 8,
 ): Promise<RetrievedScheme[]> {
+  // Narrow to a candidate set in the DATABASE first. Loading the whole catalog
+  // was fine at 20 schemes and is untenable at thousands — every chat message
+  // would pull the entire table into memory.
+  const hits = await searchSchemeIds(query, 150);
+
   const schemes = await prisma.scheme.findMany({
+    where: hits.length
+      ? { id: { in: hits.map((h) => h.id) } }
+      : // No full-text hits (e.g. a vague "what can I get?") — fall back to the
+        // schemes we can actually reason about, i.e. the ones with rules.
+        { eligibilityRules: { some: {} } },
     include: { eligibilityRules: true },
+    take: 300,
   });
 
   const terms = tokenize(query);
 
   // Eligibility boost: which schemes does this profile qualify for?
+  // Only schemes with rules are considered — the matcher reads "no rules" as
+  // "open to all", which would falsely flag every un-normalized scheme as a
+  // confirmed match.
   const eligibleSlugs = new Set<string>();
   if (profile && Object.keys(profile).length > 0) {
-    const asLike: SchemeLike[] = schemes.map((s) => ({
-      id: s.id,
-      slug: s.slug,
-      title: s.title,
-      rules: s.eligibilityRules.map((r) => ({
-        attribute: r.attribute,
-        operator: r.operator as RuleOperator,
-        value: r.value as RuleValue,
-        orGroup: r.orGroup,
-      })),
-    }));
+    const asLike: SchemeLike[] = schemes
+      .filter((s) => s.eligibilityRules.length > 0)
+      .map((s) => ({
+        id: s.id,
+        slug: s.slug,
+        title: s.title,
+        rules: s.eligibilityRules.map((r) => ({
+          attribute: r.attribute,
+          operator: r.operator as RuleOperator,
+          value: r.value as RuleValue,
+          orGroup: r.orGroup,
+        })),
+      }));
     for (const m of matchSchemes(asLike, profile)) {
       if (m.status === "eligible") eligibleSlugs.add(m.slug);
     }
