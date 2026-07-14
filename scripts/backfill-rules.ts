@@ -16,6 +16,24 @@ import type { Prisma } from "@/lib/generated/prisma/client";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** Transient Gemini failures (503 overloaded, 429 rate-limit) deserve a retry. */
+function isTransient(err: unknown): boolean {
+  const s = String(err);
+  return s.includes("503") || s.includes("429") || s.includes("UNAVAILABLE");
+}
+
+async function withRetry<T>(fn: () => Promise<T>, retries = 3): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (attempt >= retries || !isTransient(err)) throw err;
+      // Exponential backoff: 5s, 10s, 20s.
+      await sleep(5000 * 2 ** attempt);
+    }
+  }
+}
+
 function arg(name: string, fallback: number): number {
   const raw = process.argv
     .find((a) => a.startsWith(`--${name}=`))
@@ -59,7 +77,9 @@ async function main() {
 
   for (const scheme of pending) {
     try {
-      const rules = await normalizeEligibility(scheme.eligibilityText!);
+      const rules = await withRetry(() =>
+        normalizeEligibility(scheme.eligibilityText!),
+      );
       if (rules.length) {
         await prisma.eligibilityRule.createMany({
           data: rules.map((r) => ({

@@ -39,7 +39,20 @@ Operators: ${RULE_OPERATORS.join(", ")}.
 - For income, convert phrasing like "₹2 lakh" to the integer 200000.
 - If multiple criteria are alternatives (any one suffices), give them the SAME orGroup label; otherwise leave orGroup null (they are all required).
 - Only emit a rule if it maps cleanly to an attribute above. DROP anything you cannot express (e.g. "must own land", "resident of a notified village"). Do NOT invent attributes or values.
-- If nothing maps, return an empty array.`;
+- If nothing maps, return an empty array.
+
+Be THOROUGH: extract EVERY criterion that maps to an attribute above. Missing an
+age or income limit is a serious error — it would wrongly tell someone they qualify.
+
+Examples of correct extraction:
+- "age should be between 40 and 79 years" -> {"attribute":"age","operator":"BETWEEN","value":"[40, 79]"}
+- "must be 60 years or above" -> {"attribute":"age","operator":"GTE","value":"60"}
+- "annual family income should not exceed Rs. 2,00,000" -> {"attribute":"annualIncome","operator":"LTE","value":"200000"}
+- "the applicant should be a widow" -> {"attribute":"gender","operator":"EQ","value":"female"}
+- "belongs to a BPL family" -> {"attribute":"rationCardType","operator":"IN","value":"[\\"BPL\\", \\"AAY\\"]"}
+- "must be a farmer" -> {"attribute":"occupation","operator":"EQ","value":"farmer"}
+- "SC or ST candidates" -> {"attribute":"socialCategory","operator":"IN","value":"[\\"SC\\", \\"ST\\"]"}
+- "persons with disability" -> {"attribute":"isDisabled","operator":"EQ","value":"true"}`;
 
 const responseSchema = {
   type: Type.ARRAY,
