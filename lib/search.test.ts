@@ -2,9 +2,16 @@ import { describe, it, expect } from "vitest";
 import { toTsQuery } from "./search";
 
 describe("toTsQuery", () => {
-  it("ORs terms so a multi-word query still matches", () => {
-    // plainto_tsquery would AND these and return nothing useful.
-    expect(toTsQuery("old age pension")).toBe("old:* | age:* | pension:*");
+  it("requires ALL terms by default, for precision", () => {
+    // "farmer loan" must mean farming AND lending — not any scheme that merely
+    // mentions a loan.
+    expect(toTsQuery("old age pension")).toBe("old:* & age:* & pension:*");
+  });
+
+  it("can loosen to ANY term as a fallback", () => {
+    expect(toTsQuery("old age pension", "any")).toBe(
+      "old:* | age:* | pension:*",
+    );
   });
 
   it("prefix-matches so partial words hit", () => {
@@ -14,7 +21,7 @@ describe("toTsQuery", () => {
   it("strips punctuation that would break tsquery syntax", () => {
     // The stray "s" from "farmer's" is dropped as a single character.
     expect(toTsQuery("farmer's loan! (subsidy)")).toBe(
-      "farmer:* | loan:* | subsidy:*",
+      "farmer:* & loan:* & subsidy:*",
     );
   });
 

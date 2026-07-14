@@ -5,6 +5,7 @@
  */
 import { prisma } from "@/lib/db";
 import type { Prisma } from "@/lib/generated/prisma/client";
+import { searchSchemeIds } from "@/lib/search";
 import type { SchemeLike } from "@/lib/eligibility/matcher";
 import type { RuleOperator, RuleValue } from "@/lib/eligibility/rules";
 
@@ -47,15 +48,9 @@ function buildWhere(filters: DirectoryFilters) {
     });
   }
 
-  if (filters.q) {
-    and.push({
-      OR: [
-        { title: { contains: filters.q, mode: "insensitive" } },
-        { summary: { contains: filters.q, mode: "insensitive" } },
-        { ministry: { contains: filters.q, mode: "insensitive" } },
-      ],
-    });
-  }
+  // NB: the free-text term is NOT handled here — it goes through Postgres
+  // full-text search (see getSchemes), which ranks by relevance instead of doing
+  // an unindexed substring scan across thousands of rows.
 
   // "Closing soon" means schemes you can still apply to — surfacing already
   // expired ones first would be worse than not sorting at all.
@@ -76,13 +71,30 @@ export interface SchemePage {
   totalPages: number;
 }
 
+const LIST_SELECT = {
+  slug: true,
+  title: true,
+  summary: true,
+  ministry: true,
+  category: true,
+  level: true,
+  state: true,
+  closeDate: true,
+} as const;
+
 export async function getSchemes(
   filters: DirectoryFilters = {},
 ): Promise<SchemePage> {
   const perPage = filters.perPage ?? DEFAULT_PER_PAGE;
   const page = Math.max(1, filters.page ?? 1);
-  const where = buildWhere(filters);
 
+  // Search path: rank candidates with Postgres FTS, then apply the structured
+  // filters. Relevance order is preserved, so the best match is genuinely first.
+  if (filters.q?.trim()) {
+    return searchPage(filters, page, perPage);
+  }
+
+  const where = buildWhere(filters);
   const orderBy: Prisma.SchemeOrderByWithRelationInput[] =
     filters.sort === "closing"
       ? // Nearest deadline first; schemes with no deadline sink to the bottom.
@@ -96,22 +108,52 @@ export async function getSchemes(
       orderBy,
       skip: (page - 1) * perPage,
       take: perPage,
-      select: {
-        slug: true,
-        title: true,
-        summary: true,
-        ministry: true,
-        category: true,
-        level: true,
-        state: true,
-        closeDate: true,
-      },
+      select: LIST_SELECT,
     }),
     prisma.scheme.count({ where }),
   ]);
 
   return {
     schemes: rows,
+    total,
+    page,
+    perPage,
+    totalPages: Math.max(1, Math.ceil(total / perPage)),
+  };
+}
+
+/** Full-text search + structured filters, ordered by relevance. */
+async function searchPage(
+  filters: DirectoryFilters,
+  page: number,
+  perPage: number,
+): Promise<SchemePage> {
+  const hits = await searchSchemeIds(filters.q!, 500);
+  if (!hits.length) {
+    return { schemes: [], total: 0, page, perPage, totalPages: 1 };
+  }
+
+  const rank = new Map(hits.map((h, i) => [h.id, i]));
+  const where = {
+    AND: [{ id: { in: hits.map((h) => h.id) } }, buildWhere(filters)],
+  };
+
+  const matched = await prisma.scheme.findMany({
+    where,
+    select: { ...LIST_SELECT, id: true },
+  });
+
+  // Restore FTS relevance order (an `IN (...)` query gives no ordering).
+  matched.sort((a, b) => (rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0));
+
+  const total = matched.length;
+  const start = (page - 1) * perPage;
+  const schemes = matched
+    .slice(start, start + perPage)
+    .map(({ id: _id, ...rest }) => rest);
+
+  return {
+    schemes,
     total,
     page,
     perPage,
