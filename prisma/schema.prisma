@@ -36,6 +36,10 @@ model Scheme {
   // Raw eligibility criteria as published. Kept so rules can be (re)normalized
   // later without re-scraping — e.g. when Gemini quota becomes available.
   eligibilityText String?
+  // When the normalizer last ran. Set even when it produced ZERO rules (plenty
+  // of criteria simply aren't machine-checkable), so repeat runs don't burn
+  // quota re-processing schemes that will never yield anything.
+  rulesNormalizedAt DateTime?
   // Application window. closeDate drives "closes in N days" urgency badges;
   // many citizens miss schemes purely because they miss the deadline.
   openDate     DateTime?

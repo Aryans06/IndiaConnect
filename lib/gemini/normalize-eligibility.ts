@@ -54,18 +54,33 @@ Examples of correct extraction:
 - "SC or ST candidates" -> {"attribute":"socialCategory","operator":"IN","value":"[\\"SC\\", \\"ST\\"]"}
 - "persons with disability" -> {"attribute":"isDisabled","operator":"EQ","value":"true"}`;
 
+const ruleSchema = {
+  type: Type.OBJECT,
+  properties: {
+    attribute: { type: Type.STRING },
+    operator: { type: Type.STRING },
+    // value is polymorphic; we accept it as a JSON string and parse below.
+    value: { type: Type.STRING },
+    orGroup: { type: Type.STRING, nullable: true },
+  },
+  required: ["attribute", "operator", "value"],
+};
+
 const responseSchema = {
+  type: Type.ARRAY,
+  items: ruleSchema,
+};
+
+/** Batch shape: one entry per scheme, echoing the id back so we can map results. */
+const batchResponseSchema = {
   type: Type.ARRAY,
   items: {
     type: Type.OBJECT,
     properties: {
-      attribute: { type: Type.STRING },
-      operator: { type: Type.STRING },
-      // value is polymorphic; we accept it as a JSON string and parse below.
-      value: { type: Type.STRING },
-      orGroup: { type: Type.STRING, nullable: true },
+      id: { type: Type.STRING },
+      rules: { type: Type.ARRAY, items: ruleSchema },
     },
-    required: ["attribute", "operator", "value"],
+    required: ["id", "rules"],
   },
 };
 
@@ -120,19 +135,90 @@ export async function normalizeEligibility(
     return [];
   }
 
-  const candidates = parsed.map((r) => ({
-    attribute: r.attribute,
-    operator: r.operator,
-    value: coerceValue(r.value),
-    orGroup: r.orGroup ?? null,
-    rawText: text.slice(0, 500),
-  }));
+  return validateRules(parsed, text);
+}
 
-  // Validate; keep only the rules that pass our schema.
+/**
+ * Coerce + validate raw model output against our rule schema, dropping anything
+ * that doesn't pass. Shared by the single and batch paths so batched rules are
+ * held to exactly the same standard.
+ */
+function validateRules(
+  raw: RawRule[],
+  sourceText: string,
+): EligibilityRuleInput[] {
   const valid: EligibilityRuleInput[] = [];
-  for (const c of candidates) {
-    const result = eligibilityRuleArraySchema.element.safeParse(c);
+  for (const r of raw ?? []) {
+    const candidate = {
+      attribute: r.attribute,
+      operator: r.operator,
+      value: coerceValue(r.value),
+      orGroup: r.orGroup ?? null,
+      rawText: sourceText.slice(0, 500),
+    };
+    const result = eligibilityRuleArraySchema.element.safeParse(candidate);
     if (result.success) valid.push(result.data);
   }
   return valid;
+}
+
+export interface BatchItem {
+  id: string;
+  eligibilityText: string;
+}
+
+/**
+ * Normalize MANY schemes in a single request.
+ *
+ * Gemini's free tier is capped on requests-per-day, not tokens — so batching
+ * ~10 schemes per call cuts the request count by an order of magnitude and is
+ * the difference between a backfill taking days and taking minutes.
+ *
+ * Returns a map of scheme id -> validated rules. Any scheme the model omits
+ * simply maps to an empty array; callers still mark it processed.
+ */
+export async function normalizeEligibilityBatch(
+  items: BatchItem[],
+): Promise<Map<string, EligibilityRuleInput[]>> {
+  const out = new Map<string, EligibilityRuleInput[]>();
+  const usable = items.filter((i) => i.eligibilityText?.trim());
+  for (const i of items) out.set(i.id, []);
+  if (!usable.length) return out;
+
+  const ai = getGemini();
+  const payload = usable.map((i) => ({
+    id: i.id,
+    criteria: i.eligibilityText.trim().slice(0, 4000),
+  }));
+
+  const res = await ai.models.generateContent({
+    model: GEMINI_MODEL,
+    contents: `Convert the eligibility criteria for EACH scheme below into rules.
+
+Return one entry per scheme, echoing its "id" exactly, with its "rules" array
+(use an empty array if nothing maps).
+
+Schemes:
+${JSON.stringify(payload)}`,
+    config: {
+      systemInstruction: SYSTEM,
+      responseMimeType: "application/json",
+      responseSchema: batchResponseSchema,
+      temperature: 0,
+    },
+  });
+
+  let parsed: { id: string; rules: RawRule[] }[];
+  try {
+    parsed = JSON.parse(res.text ?? "[]");
+  } catch {
+    return out; // all empty; caller still marks them processed
+  }
+
+  const textById = new Map(usable.map((i) => [i.id, i.eligibilityText]));
+  for (const entry of parsed ?? []) {
+    if (!entry?.id || !out.has(entry.id)) continue; // ignore hallucinated ids
+    out.set(entry.id, validateRules(entry.rules, textById.get(entry.id) ?? ""));
+  }
+  return out;
 }
