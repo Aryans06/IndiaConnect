@@ -6,19 +6,22 @@ India runs thousands of welfare schemes — pensions, scholarships, housing, hea
 
 IndiaConnect turns that into a personal, actionable shortlist: answer a few plain questions and see the schemes meant for you, the documents you need (checked against your own DigiLocker), and the steps to apply — in your language, by voice if you prefer.
 
+**3,874 schemes** across **36 states and union territories**, scraped from the government's own aggregator and normalized into a searchable, machine-checkable catalog.
+
 ---
 
 ## What it does
 
 | Feature | Description |
 |---|---|
-| **Scheme directory** | Browse every scheme. Search, filter by category and state, sort by closing deadline. |
+| **Scheme directory** | Browse every scheme. Postgres full-text search (single-digit milliseconds across the catalog), filter by category and state, sort by closing deadline. |
 | **Eligibility finder** | A guided, skip-friendly questionnaire → ranked matches with plain-language reasons. |
 | **Deterministic matching** | Rule-based, explainable, reproducible. Never an LLM guess. |
 | **Document matching** | Connect DigiLocker → see "have ✓ / still need ✕" per scheme, plus how to obtain what's missing. |
 | **Application tracker** | Tick off application steps; progress is saved. |
 | **AI assistant** | Ask in plain words. Answers are grounded in the real scheme catalog (RAG), never invented. |
 | **Multilingual + voice** | 6 Indian languages. Speak your question, hear the answer — voice needs no API keys. |
+| **Rate limiting** | Per-IP caps on every public and write endpoint, so the AI endpoint can't be run up as a cost or abuse vector. |
 
 ---
 
@@ -57,6 +60,7 @@ Copy `.env.example` → `.env`. Only `DATABASE_URL` is required.
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` + `CLERK_SECRET_KEY` | No | Real phone/OTP sign-in. Without them, set `DEV_MOCK_AUTH=true` to sign in as a demo user. |
 | `DIGILOCKER_*` | No | Real DigiLocker. Leave `DIGILOCKER_USE_MOCK=true` for a realistic mock. |
 | `BHASHINI_*` | No | Optional translation provider. Gemini handles translation without it. |
+| `ASSISTANT_RATE_LIMIT` / `ELIGIBILITY_RATE_LIMIT` | No | Per-IP requests/minute. Default 15 and 60. |
 
 > ⚠️ **Never put keys in `.env.example`** — it's committed to git. Keys go in `.env`, which is gitignored.
 
@@ -118,18 +122,22 @@ prisma/                 schema, migrations, curated seed
 
 **Every external dependency degrades gracefully.** No Gemini key → the assistant still returns real matching schemes. No Clerk → the public app works, auth is just unavailable. No DigiLocker → a realistic mock. No translation provider → English. The app never breaks because a key is missing.
 
+**Search happens in the database, not in memory.** A GIN-indexed `tsvector` (weighted so a title match outranks a summary match) ranks the whole catalog in single-digit milliseconds. Terms are ANDed for precision and only loosened to OR if that returns nothing — so "farmer loan" means farming *and* lending, not any scheme that mentions a loan.
+
+**A scheme with no rules is never reported as a match.** The matcher reads "no rules" as "open to everyone", which is true of hand-curated schemes but badly wrong for scraped ones whose criteria haven't been normalized yet. Only schemes with at least one structured rule can assert eligibility; the rest stay browsable but silent. Claiming eligibility without evidence is the exact harm this app exists to prevent.
+
 ---
 
 ## Development
 
 ```bash
 npm run dev            # dev server
-npm test               # unit tests (matcher, deadlines, rate limiting)
+npm test               # 52 unit tests
 npm run build          # production build
 npx prisma studio      # browse the database
 ```
 
-The eligibility engine is the most correctness-critical unit and is covered by table-driven tests across every operator, AND/OR composition, missing-data handling, and ranking.
+Tests cover the eligibility matcher, deadline logic, rate limiting, and the search query builder. The eligibility engine is the most correctness-critical unit and is covered by table-driven tests across every operator, AND/OR composition, missing-data handling, and ranking.
 
 ---
 
