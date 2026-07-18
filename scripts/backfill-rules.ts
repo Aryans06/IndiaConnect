@@ -51,10 +51,10 @@ async function main() {
   }
 
   const max = arg("max", 4000);
-  const batchSize = arg("batch", 10);
+  const batchSize = arg("batch", provider === "groq" ? 6 : 10);
   // Groq is both faster and far more generous per day, so it needs much less
   // throttling than Gemini's ~10 requests/minute free tier.
-  const throttle = arg("throttle", provider === "groq" ? 1500 : 7000);
+  const throttle = arg("throttle", provider === "groq" ? 9000 : 7000);
 
   console.log(`Provider: ${provider}\n`);
 

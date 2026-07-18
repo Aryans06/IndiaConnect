@@ -209,9 +209,14 @@ export async function normalizeEligibilityBatch(
   for (const i of items) out.set(i.id, []);
   if (!usable.length) return out;
 
+  // Groq's free tier is bounded by tokens-per-minute (12k), so keep each
+  // scheme's criteria short. Eligibility criteria are front-loaded — the
+  // machine-checkable bits (age, income, category) appear early, and the tail is
+  // usually prose we can't express anyway.
+  const perScheme = normalizerProvider() === "groq" ? 1200 : 4000;
   const payload = usable.map((i) => ({
     id: i.id,
-    criteria: i.eligibilityText.trim().slice(0, 4000),
+    criteria: i.eligibilityText.trim().slice(0, perScheme),
   }));
   const textById = new Map(usable.map((i) => [i.id, i.eligibilityText]));
 
