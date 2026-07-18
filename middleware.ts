@@ -1,7 +1,12 @@
 /**
  * Clerk middleware — only active when Clerk keys are present, so the app runs
- * fine in development without them. Account routes are protected; everything
- * else (directory, finder, detail pages) stays public for SEO.
+ * fine in development without them.
+ *
+ * It supplies the auth context but deliberately does NOT hard-block any route.
+ * `auth.protect()` 404s when it has no sign-in URL to redirect to, which is a
+ * dead end for a signed-out visitor. Instead each surface handles it properly:
+ * /account renders a "Sign in to continue" prompt, and the write APIs return
+ * 401. Everything else stays public for SEO.
  */
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
@@ -13,13 +18,8 @@ const clerkConfigured = Boolean(
 
 // Built lazily to avoid importing Clerk when it isn't configured.
 async function clerkHandler(req: NextRequest) {
-  const { clerkMiddleware, createRouteMatcher } = await import(
-    "@clerk/nextjs/server"
-  );
-  const isProtected = createRouteMatcher(["/account(.*)"]);
-  const handler = clerkMiddleware(async (auth, request) => {
-    if (isProtected(request)) await auth.protect();
-  });
+  const { clerkMiddleware } = await import("@clerk/nextjs/server");
+  const handler = clerkMiddleware();
   // @ts-expect-error — event arg is optional for our usage
   return handler(req);
 }
