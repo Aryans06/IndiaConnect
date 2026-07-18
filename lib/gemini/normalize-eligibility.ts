@@ -6,7 +6,8 @@
  * correct rule set beats a complete but wrong one.
  */
 import { Type } from "@google/genai";
-import { getGemini, GEMINI_MODEL } from "./client";
+import { getGemini, GEMINI_MODEL, hasGeminiKey } from "./client";
+import { groqComplete, hasGroqKey } from "@/lib/llm/groq";
 import { ATTRIBUTES, ATTRIBUTE_KEYS } from "@/lib/eligibility/attributes";
 import {
   RULE_OPERATORS,
@@ -167,12 +168,35 @@ export interface BatchItem {
   eligibilityText: string;
 }
 
+const BATCH_INSTRUCTION = `Convert the eligibility criteria for EACH scheme below into rules.
+
+Return one entry per scheme, echoing its "id" exactly, with its "rules" array
+(use an empty array if nothing maps).`;
+
+/**
+ * Which model provider does the bulk rule extraction.
+ *
+ * Groq is preferred when available: this is a batch job over thousands of
+ * schemes, so the binding constraint is requests-per-day, and Groq's free tier
+ * is roughly 10x Gemini's while returning in ~2s instead of ~25s. Gemini stays
+ * as the fallback. Whichever runs, the output goes through the same zod
+ * validation, so a weaker model yields FEWER rules — never wrong ones.
+ */
+export function normalizerProvider(): "groq" | "gemini" | "none" {
+  const forced = process.env.RULES_PROVIDER;
+  if (forced === "groq" && hasGroqKey()) return "groq";
+  if (forced === "gemini" && hasGeminiKey()) return "gemini";
+  if (hasGroqKey()) return "groq";
+  if (hasGeminiKey()) return "gemini";
+  return "none";
+}
+
 /**
  * Normalize MANY schemes in a single request.
  *
- * Gemini's free tier is capped on requests-per-day, not tokens — so batching
- * ~10 schemes per call cuts the request count by an order of magnitude and is
- * the difference between a backfill taking days and taking minutes.
+ * Free tiers cap requests-per-day, not tokens — so batching ~10 schemes per
+ * call cuts the request count by an order of magnitude and is the difference
+ * between a backfill taking days and taking minutes.
  *
  * Returns a map of scheme id -> validated rules. Any scheme the model omits
  * simply maps to an empty array; callers still mark it processed.
@@ -185,18 +209,21 @@ export async function normalizeEligibilityBatch(
   for (const i of items) out.set(i.id, []);
   if (!usable.length) return out;
 
-  const ai = getGemini();
   const payload = usable.map((i) => ({
     id: i.id,
     criteria: i.eligibilityText.trim().slice(0, 4000),
   }));
+  const textById = new Map(usable.map((i) => [i.id, i.eligibilityText]));
+
+  if (normalizerProvider() === "groq") {
+    return normalizeBatchWithGroq(payload, textById, out);
+  }
+
+  const ai = getGemini();
 
   const res = await ai.models.generateContent({
     model: GEMINI_MODEL,
-    contents: `Convert the eligibility criteria for EACH scheme below into rules.
-
-Return one entry per scheme, echoing its "id" exactly, with its "rules" array
-(use an empty array if nothing maps).
+    contents: `${BATCH_INSTRUCTION}
 
 Schemes:
 ${JSON.stringify(payload)}`,
@@ -215,7 +242,51 @@ ${JSON.stringify(payload)}`,
     return out; // all empty; caller still marks them processed
   }
 
-  const textById = new Map(usable.map((i) => [i.id, i.eligibilityText]));
+  return collectBatch(parsed, textById, out);
+}
+
+/** Groq path: same prompt and validation, OpenAI-compatible JSON-object mode. */
+async function normalizeBatchWithGroq(
+  payload: { id: string; criteria: string }[],
+  textById: Map<string, string>,
+  out: Map<string, EligibilityRuleInput[]>,
+): Promise<Map<string, EligibilityRuleInput[]>> {
+  // Groq's JSON mode guarantees a valid JSON *object*, not an array, so we ask
+  // for the array under a "results" key.
+  const raw = await groqComplete({
+    system: SYSTEM,
+    user: `${BATCH_INSTRUCTION}
+
+Respond with a JSON object of the form:
+{"results":[{"id":"<scheme id>","rules":[{"attribute":"...","operator":"...","value":"...","orGroup":null}]}]}
+
+Note: "value" must be a STRING — use "40" for numbers, "[40, 80]" for ranges,
+"[\\"BPL\\", \\"AAY\\"]" for lists, "true"/"false" for booleans.
+
+Schemes:
+${JSON.stringify(payload)}`,
+    json: true,
+  });
+
+  let parsed: { id: string; rules: RawRule[] }[];
+  try {
+    const obj = JSON.parse(raw) as {
+      results?: { id: string; rules: RawRule[] }[];
+    };
+    parsed = obj.results ?? [];
+  } catch {
+    return out;
+  }
+
+  return collectBatch(parsed, textById, out);
+}
+
+/** Map validated rules back onto scheme ids, ignoring anything hallucinated. */
+function collectBatch(
+  parsed: { id: string; rules: RawRule[] }[],
+  textById: Map<string, string>,
+  out: Map<string, EligibilityRuleInput[]>,
+): Map<string, EligibilityRuleInput[]> {
   for (const entry of parsed ?? []) {
     if (!entry?.id || !out.has(entry.id)) continue; // ignore hallucinated ids
     out.set(entry.id, validateRules(entry.rules, textById.get(entry.id) ?? ""));

@@ -17,9 +17,9 @@
  */
 import "dotenv/config";
 import { prisma } from "@/lib/db";
-import { hasGeminiKey } from "@/lib/gemini/client";
 import {
   normalizeEligibilityBatch,
+  normalizerProvider,
   type BatchItem,
 } from "@/lib/gemini/normalize-eligibility";
 import type { EligibilityRuleInput, RuleOperator } from "@/lib/eligibility/rules";
@@ -42,15 +42,21 @@ function isTransient(err: unknown): boolean {
 }
 
 async function main() {
-  if (!hasGeminiKey()) {
-    console.error("GEMINI_API_KEY is not set — nothing to do.");
+  const provider = normalizerProvider();
+  if (provider === "none") {
+    console.error(
+      "No model provider configured — set GROQ_API_KEY (preferred) or GEMINI_API_KEY.",
+    );
     process.exit(1);
   }
 
-  const max = arg("max", 1400);
+  const max = arg("max", 4000);
   const batchSize = arg("batch", 10);
-  // Free tier is ~10 requests/minute; one request now covers `batchSize` schemes.
-  const throttle = arg("throttle", 7000);
+  // Groq is both faster and far more generous per day, so it needs much less
+  // throttling than Gemini's ~10 requests/minute free tier.
+  const throttle = arg("throttle", provider === "groq" ? 1500 : 7000);
+
+  console.log(`Provider: ${provider}\n`);
 
   const pending = await prisma.scheme.findMany({
     where: { eligibilityText: { not: null }, rulesNormalizedAt: null },
@@ -88,7 +94,7 @@ async function main() {
     } catch (err) {
       if (isQuotaExhausted(err)) {
         console.warn(
-          `\n⚠ Gemini daily/rate quota exhausted after ${processed} schemes.\n  Re-run this command later — it resumes exactly where it stopped.\n`,
+          `\n⚠ ${provider} daily/rate quota exhausted after ${processed} schemes.\n  Re-run this command later — it resumes exactly where it stopped.\n`,
         );
         break;
       }
